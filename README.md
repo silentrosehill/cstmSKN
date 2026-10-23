@@ -8,7 +8,7 @@ A personal macOS skin manager with a native glass interface, built on [Zushi](ht
 
 ## Features
 
-- **Favorites** collects starred catalog skins, chromas, and custom imports in one place.
+- **Favorites** collects starred catalog skins, chromas, and custom imports in one place. Select or deselect downloaded skins and imported mods directly from their cards; missing skins offer Download & select.
 - **Loadouts** saves named sets of skins and mods, restores available items, and identifies missing downloads.
 - **Game Mods** imports announcers, champion voices, maps, and other mods as `.fantome`, `.zip`, `.wad`, or `.wad.client` packages.
 - Drop packages anywhere in the desktop app, review the detected champion and category, then enable them. Existing imports are never overwritten.
@@ -89,7 +89,7 @@ The script checks source and bundled application versions, runs the test suites 
 
 ## Validation
 
-v0.1.22 passed TypeScript/Vite production compilation, native Rust compilation, 57 frontend tests, 13 Rust tests, and code-signature checks. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
+v0.1.23 passed TypeScript/Vite production compilation, native Rust compilation, 57 frontend tests, 13 Rust tests, and code-signature checks. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
 
 The patcher binary is unchanged from the user-confirmed working release. Its Mach-O import fix previously passed 6 native regression cases and an offline check against the installed game. New coverage includes category coexistence, real archive imports, duplicate import names, legacy metadata migration, loadout restore, local lock-in/trades/rerolls, sidebar preferences, tab accents, library deck grouping/selection/chroma handling, and download-only selection isolation. The latest interface was checked through compilation and automated tests; live window interactions and a live champion-select session were not manually verified.
 

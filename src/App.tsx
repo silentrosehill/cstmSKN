@@ -29,6 +29,7 @@ import {
   ensureRepoZips,
   ensureChromaInfo,
   getSkinsForChampion,
+  skinDownloadUrl,
 } from "./hooks/useSkinData";
 import StatusBar from "./components/StatusBar";
 import DownloadBar from "./components/DownloadBar";
@@ -267,6 +268,24 @@ export default function App() {
       setToastMessage(String(e));
     }
   }
+  async function downloadLook(url: string, name: string, skin: string): Promise<boolean> {
+    const path = await dl.download(url, name, skin);
+    if (path)
+      downloadsRef.current = [
+        ...downloadsRef.current.filter((d) => !(d.champion_name === name && d.skin_name === skin)),
+        { champion_name: name, skin_name: skin, zip_path: path },
+      ];
+    return !!path;
+  }
+  async function selectFavorite(skin: Skin, enabled: boolean) {
+    if (enabled && !dl.isDownloaded(skin.championName, skin.name)) {
+      await ensureRepoZips();
+      const url = skinDownloadUrl(skin);
+      if (!url) throw new Error("This skin is currently unavailable for download.");
+      if (!(await downloadLook(url, skin.championName, skin.name))) return;
+    }
+    selectLook(skin, enabled);
+  }
   async function addCustom(path: string, kind?: ModKind) {
     if (importingRef.current || updates.blocking)
       throw new Error("Finish the current operation before importing another mod.");
@@ -395,6 +414,10 @@ export default function App() {
     if (view === "favorites")
       return (
         <Favorites
+          selection={loadout.skins}
+          onSelectSkin={selectFavorite}
+          onSelectCustom={toggleCustom}
+          downloading={dl.downloading}
           favorites={favorites.favorites}
           customs={customMods}
           onOpen={(skin) => {
@@ -559,17 +582,7 @@ export default function App() {
           }}
           isDownloaded={dl.isDownloaded}
           downloading={dl.downloading}
-          onDownload={async (url, name, skin) => {
-            const path = await dl.download(url, name, skin);
-            if (path)
-              downloadsRef.current = [
-                ...downloadsRef.current.filter(
-                  (d) => !(d.champion_name === name && d.skin_name === skin)
-                ),
-                { champion_name: name, skin_name: skin, zip_path: path },
-              ];
-            return !!path;
-          }}
+          onDownload={downloadLook}
           selection={loadout.skins}
           onSelectSkin={selectLook}
           onArtworkChange={setArtwork}

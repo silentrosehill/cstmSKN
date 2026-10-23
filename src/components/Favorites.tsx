@@ -1,5 +1,5 @@
-import { Search, Star, Package, Check, X } from "lucide-react";
-import { useState } from "react";
+import { Search, Star, Package, Check, X, Download, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
 import type { Favorites as Collection } from "../lib/collections";
 import type { CustomMod, Skin } from "../types";
 import SkinPortrait from "./SkinPortrait";
@@ -14,7 +14,15 @@ export default function Favorites({
   onRemoveCustom,
   onOpenCustom,
   isDownloaded,
+  selection,
+  onSelectSkin,
+  onSelectCustom,
+  downloading,
 }: {
+  selection: Record<string, string>;
+  onSelectSkin: (skin: Skin, selected: boolean) => Promise<void>;
+  onSelectCustom: (mod: CustomMod) => void;
+  downloading: string | null;
   favorites: Collection;
   customs: CustomMod[];
   onOpen: (skin: Skin) => void;
@@ -24,6 +32,23 @@ export default function Favorites({
   isDownloaded: (champion: string, skin: string) => boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [pending, setPending] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const busy = useRef(false);
+  async function runAction(key: string, action: () => void | Promise<void>) {
+    if (busy.current || downloading !== null) return;
+    busy.current = true;
+    setPending(key);
+    setError(null);
+    try {
+      await action();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      busy.current = false;
+      setPending(null);
+    }
+  }
   const matches = (value: string) => value.toLowerCase().includes(query.trim().toLowerCase());
   const skins = favorites.skins.filter((s) => matches(`${s.name} ${s.championName}`));
   const mods = customs.filter((m) => favorites.customs.includes(m.name) && matches(m.name));
@@ -48,6 +73,11 @@ export default function Favorites({
           )}
         </div>
       </div>
+      {error && (
+        <p className="custom-error" role="alert">
+          {error}
+        </p>
+      )}
       {!count ? (
         <div className="minimal-empty">
           <Star size={30} />
@@ -91,6 +121,35 @@ export default function Favorites({
                 <span>{skin.championName}</span>
                 <strong>{skin.name}</strong>
               </button>
+              <div className="favorite-card-actions">
+                <button
+                  className={`favorite-select ${selection[skin.championName] === skin.name ? "selected" : ""}`}
+                  disabled={!!pending || downloading !== null}
+                  aria-pressed={selection[skin.championName] === skin.name}
+                  aria-label={`${selection[skin.championName] === skin.name ? "Deselect" : "Select"} ${skin.name}`}
+                  onClick={() =>
+                    void runAction(skin.id, () =>
+                      onSelectSkin(skin, selection[skin.championName] !== skin.name)
+                    )
+                  }
+                >
+                  {pending === skin.id ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : selection[skin.championName] === skin.name ||
+                    isDownloaded(skin.championName, skin.name) ? (
+                    <Check size={13} />
+                  ) : (
+                    <Download size={13} />
+                  )}
+                  {pending === skin.id
+                    ? "Working…"
+                    : selection[skin.championName] === skin.name
+                      ? "Selected"
+                      : isDownloaded(skin.championName, skin.name)
+                        ? "Select"
+                        : "Download & select"}
+                </button>
+              </div>
             </article>
           ))}
           {mods.map((mod) => (
@@ -114,6 +173,18 @@ export default function Favorites({
                 <span>{modLabel(mod)}</span>
                 <strong>{mod.name}</strong>
               </button>
+              <div className="favorite-card-actions">
+                <button
+                  className={`favorite-select ${mod.enabled ? "selected" : ""}`}
+                  disabled={!!pending || downloading !== null}
+                  aria-pressed={mod.enabled}
+                  aria-label={`${mod.enabled ? "Deselect" : "Select"} ${mod.name}`}
+                  onClick={() => void runAction(`custom:${mod.name}`, () => onSelectCustom(mod))}
+                >
+                  <Check size={13} />
+                  {mod.enabled ? "Selected" : "Select"}
+                </button>
+              </div>
             </article>
           ))}
         </div>

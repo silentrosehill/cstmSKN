@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "cstmSKN",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "identifier": "com.silentrosehill.cstmskn",
   "build": {
     "frontendDist": "../dist",
@@ -25,7 +25,14 @@
         "minHeight": 700,
         "titleBarStyle": "Visible",
         "hiddenTitle": false,
-        "transparent": true
+        "transparent": true,
+        "windowEffects": {
+          "effects": [
+            "sidebar"
+          ],
+          "state": "active",
+          "radius": 14
+        }
       }
     ],
     "security": {

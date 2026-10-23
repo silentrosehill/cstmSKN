@@ -112,7 +112,7 @@
     inset 1px 0 0 rgb(255 255 255 / 0.045),
     inset 0 -1px 0 rgb(0 0 0 / 0.1);
 }
-/* The desktop app owns a single native glass or behind-window vibrancy surface. */
+/* AppKit draws this backing in the desktop app when NSGlassEffectView exists. */
 :root[data-native-glass="true"] .glass-app.native .glass-sidebar::before {
   display: none;
 }
@@ -1594,37 +1594,4 @@
 }
 .sidebar-setting-row:last-child {
   margin-bottom: -4px;
-}
-
-/* Native clear glass samples the real desktop. Do not frost it a second time
-   in WebKit or paint an application-colored panel over the native material. */
-:root .glass-app.native .glass-sidebar,
-:root[data-theme="light"] .glass-app.native .glass-sidebar,
-:root[data-artwork="true"] .glass-app.native .glass-sidebar {
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-:root[data-native-glass="true"] .glass-app.native .glass-sidebar::before {
-  display: none;
-}
-:root:not([data-theme="light"])
-  .glass-app.native
-  .glass-sidebar
-  :is(.nav-label, .enabled-title, .enabled-open strong, .enabled-open small, .profile strong) {
-  text-shadow: 0 1px 5px rgb(0 0 0 / 0.55);
-}
-:root[data-theme="light"]
-  .glass-app.native
-  .glass-sidebar
-  :is(.nav-label, .enabled-title, .enabled-open strong, .enabled-open small, .profile strong) {
-  text-shadow: 0 1px 5px rgb(255 255 255 / 0.6);
-}
-@media (prefers-reduced-transparency: reduce) {
-  :root[data-native-glass="true"] .glass-app.native .glass-sidebar::before {
-    display: block;
-    background: var(--sidebar-surface);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
 }

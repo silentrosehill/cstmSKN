@@ -9,6 +9,7 @@ fn main() {
     // Embed Info.plist in the Mach-O binary so macOS Authorization Services
     // recognise this as a proper app (required for AuthorizationCreate).
     if cfg!(target_os = "macos") {
+        println!("cargo:rerun-if-changed=Info.plist");
         let plist = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Info.plist");
         println!(
             "cargo:rustc-link-arg=-sectcreate"

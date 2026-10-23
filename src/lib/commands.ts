@@ -6,7 +6,14 @@ async function invoke<T = void>(command: string, args?: Record<string, unknown>)
   if (["detect_game_path", "get_game_path"].includes(command)) return null as T;
   throw new Error("Open cstmSKN on your Mac to use native skin and game features.");
 }
-import type { PatcherStatus, DownloadedSkin, CustomEntry } from "../types";
+import type {
+  PatcherStatus,
+  DownloadedSkin,
+  CustomEntry,
+  ModKind,
+  HealthCheck,
+  ChampSelectState,
+} from "../types";
 
 export async function detectGamePath(): Promise<string | null> {
   return invoke<string | null>("detect_game_path");
@@ -78,8 +85,22 @@ export async function clearWorkDir(): Promise<void> {
   return invoke("clear_work_dir");
 }
 
-export async function importCustom(srcPath: string, name: string): Promise<CustomEntry> {
-  return invoke("import_custom", { srcPath, name });
+export async function importCustom(
+  srcPath: string,
+  name: string,
+  kind?: ModKind
+): Promise<CustomEntry> {
+  return invoke("import_custom", { srcPath, name, kind });
+}
+
+export async function setCustomKind(name: string, kind: ModKind): Promise<void> {
+  return invoke("set_custom_kind", { name, kind });
+}
+export async function getPatcherHealth(paths: string[]): Promise<HealthCheck[]> {
+  return invoke("get_patcher_health", { paths });
+}
+export async function getChampSelect(): Promise<ChampSelectState> {
+  return invoke("get_champ_select");
 }
 
 export async function listCustoms(): Promise<CustomEntry[]> {
@@ -98,4 +119,6 @@ export async function getCustomsDirSize(): Promise<number> {
   return invoke("get_customs_dir_size");
 }
 
-export async function getPatcherLog(): Promise<string> { return invoke<string>("get_patcher_log"); }
+export async function getPatcherLog(): Promise<string> {
+  return invoke<string>("get_patcher_log");
+}

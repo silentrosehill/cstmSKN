@@ -1,7 +1,11 @@
-import { Play, Square, Loader2 } from "lucide-react";
+import { Play, Square, Loader2, Activity, CircleAlert } from "lucide-react";
+import type { PatcherHealth } from "../hooks/usePatcherHealth";
 import type { PatcherStatus } from "../types";
 
 interface StatusBarProps {
+  health: PatcherHealth;
+  native: boolean;
+  onHealth: () => void;
   patcherStatus: PatcherStatus;
   skinCount: number;
   customCount: number;
@@ -31,13 +35,20 @@ function getStatusInfo(s: PatcherStatus): { label: string; dotClass: string; spi
     case "InGame":
       return { label: "In game", dotClass: "bg-success", spinner: false };
     case "GameExited":
-      return { label: "Waiting for next game", dotClass: "bg-gold-400 animate-pulse", spinner: false };
+      return {
+        label: "Waiting for next game",
+        dotClass: "bg-gold-400 animate-pulse",
+        spinner: false,
+      };
     default:
       return { label: "Ready", dotClass: "bg-ink-muted", spinner: false };
   }
 }
 
 export default function StatusBar({
+  health,
+  native,
+  onHealth,
   patcherStatus,
   skinCount,
   customCount,
@@ -62,7 +73,9 @@ export default function StatusBar({
     <footer className="border-border bg-charcoal-500 flex items-center gap-3 border-t px-4 py-2.5">
       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotClass}`} />
       {spinner && <Loader2 size={14} className="text-gold-400 shrink-0 animate-spin" />}
-      <span role="status" aria-live="polite"
+      <span
+        role="status"
+        aria-live="polite"
         className={[
           "truncate text-sm",
           isActive ? "text-ink font-medium" : "text-ink-secondary",
@@ -71,6 +84,26 @@ export default function StatusBar({
         {label}
       </span>
 
+      <button
+        className={`health-indicator ${health.error || health.checks.some((c) => c.state === "error") ? "needs-attention" : ""}`}
+        onClick={onHealth}
+        aria-label="Open patcher health"
+        title={
+          !native
+            ? "Patcher health · Mac app only"
+            : health.error
+              ? "Patcher health check unavailable"
+              : health.checks.some((c) => c.state === "error")
+                ? "Patcher needs attention"
+                : "Patcher health"
+        }
+      >
+        {health.error || health.checks.some((c) => c.state === "error") ? (
+          <CircleAlert size={14} />
+        ) : (
+          <Activity size={14} />
+        )}
+      </button>
       <div className="ml-auto flex shrink-0 items-center gap-3">
         {!isActive && countLabel && (
           <span className="text-ink-muted text-xs tabular-nums select-none">{countLabel}</span>

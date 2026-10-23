@@ -24,7 +24,7 @@ fn work_dir(app: &AppHandle) -> PathBuf {
     dir
 }
 
-fn sidecar_path(_app: &AppHandle) -> PathBuf {
+pub(super) fn sidecar_path(_app: &AppHandle) -> PathBuf {
     let triple = if cfg!(target_arch = "aarch64") {
         "aarch64-apple-darwin"
     } else {
@@ -291,7 +291,7 @@ fn do_apply_skins_bg(
 
     run_mod_tools(&binary, &mkoverlay_args, &log_path).map_err(|e| {
         if e.to_lowercase().contains("conflict") {
-            "You can't apply two skins to the same champion at once. Deselect one and try again.".to_string()
+            "Two enabled mods change the same game files. Disable one of the conflicting mods and apply again.".to_string()
         } else {
             e
         }
@@ -504,4 +504,31 @@ mod diagnostics_tests {
         assert_eq!(game_patch_error("[patcher] failed for pid=123: Failed to find wad_verify call"), Some("Game patch failed: Failed to find wad_verify call".into()));
         assert!(game_patch_error("[patcher] patched pid=123").is_none());
     }
+}
+
+#[derive(serde::Serialize)]
+pub struct HealthCheck { id: &'static str, label: &'static str, state: &'static str, detail: String }
+
+#[tauri::command]
+pub async fn get_patcher_health(app: AppHandle, state: State<'_, Arc<Mutex<AppState>>>, paths: Vec<String>) -> Result<Vec<HealthCheck>, String> {
+    let (game, status) = { let s = state.lock().map_err(|e| e.to_string())?; (s.game_path.clone(), s.patcher_status.clone()) };
+    let binary = sidecar_path(&app);
+    let base = work_dir(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::os::unix::fs::PermissionsExt;
+        let check = |id, label, ok, detail: String| HealthCheck { id, label, state: if ok { "ok" } else { "error" }, detail };
+        let valid_game = game.as_deref().map(|p| Path::new(p).join("LeagueofLegends.app").is_dir() && Path::new(p).join("DATA/FINAL").is_dir()).unwrap_or(false);
+        let executable = fs::metadata(&binary).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false);
+        let writable = std::ffi::CString::new(base.to_string_lossy().as_bytes()).map(|path| unsafe { libc::access(path.as_ptr(), libc::W_OK) == 0 }).unwrap_or(false);
+        let missing: Vec<_> = paths.iter().filter(|p| !Path::new(p).is_file()).filter_map(|p| Path::new(p).file_name()).map(|p| p.to_string_lossy().into_owned()).collect();
+        let engine_error = match status { PatcherStatus::Error(error) => Some(error), _ => None };
+        Ok(vec![
+            check("game", "League installation", valid_game, if valid_game { "Game files found.".into() } else { "Choose your League installation in Settings.".into() }),
+            check("engine", "Patcher engine", executable, if executable { "Engine is installed and executable.".into() } else { "Reinstall cstmSKN to restore its patcher engine.".into() }),
+            check("permissions", "Game access", crate::running_as_root(), if crate::running_as_root() { "Administrator access is available.".into() } else { "Reopen cstmSKN and allow macOS administrator access.".into() }),
+            check("storage", "Mod storage", writable, if writable { "Storage is accessible.".into() } else { "Reopen cstmSKN with administrator access.".into() }),
+            check("selection", "Selected files", missing.is_empty(), if missing.is_empty() { "Selected mod files are available.".into() } else { format!("Download or import again: {}", missing.join(", ")) }),
+            check("session", "Patcher session", engine_error.is_none(), engine_error.unwrap_or_else(|| "No current patcher errors.".into())),
+        ])
+    }).await.map_err(|e| e.to_string())?
 }

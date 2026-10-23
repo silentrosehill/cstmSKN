@@ -2,12 +2,39 @@ import { useState, useEffect, useCallback } from "react";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Power, FolderOpen, Trash2, Loader2, HardDrive } from "lucide-react";
-import { getPatcherLog, getSkinsDirSize, getWorkDirSize, getCustomsDirSize, clearAllSkins, clearWorkDir, clearAllCustoms } from "../lib/commands";
+import {
+  getPatcherLog,
+  getSkinsDirSize,
+  getWorkDirSize,
+  getCustomsDirSize,
+  clearAllSkins,
+  clearWorkDir,
+  clearAllCustoms,
+} from "../lib/commands";
 import Toast from "./Toast";
 import AppUpdateCard from "./AppUpdateCard";
+import SidebarSettings from "./SidebarSettings";
+import type { SidebarItem } from "./SidebarSettings";
+import type { NavigationPreferences, TabId } from "../lib/navigation";
+import PatcherHealthCard from "./PatcherHealthCard";
+import type { PatcherHealth } from "../hooks/usePatcherHealth";
+import type { ChampSelectState } from "../types";
 import type { AppUpdates } from "../hooks/useAppUpdates";
 
 interface SettingsProps {
+  sidebarItems: SidebarItem[];
+  navigation: NavigationPreferences;
+  onMoveTab: (id: TabId, index: number) => void;
+  onToggleTab: (id: TabId) => void;
+  onResetTabs: () => void;
+  accentMode: string;
+  onAccentModeChange: (mode: string) => void;
+  hasSelection: boolean;
+  health: PatcherHealth;
+  onRetry: () => void;
+  followClient: boolean;
+  onFollowClientChange: (enabled: boolean) => void;
+  clientStatus: ChampSelectState["state"];
   updates: AppUpdates;
   native: boolean;
   updateBlockedReason: string | null;
@@ -30,8 +57,26 @@ function formatSize(bytes: number): string {
 }
 
 export default function Settings({
-  updates, native, updateBlockedReason,
-  theme, onThemeChange, accent, onAccentChange,
+  sidebarItems,
+  navigation,
+  onMoveTab,
+  onToggleTab,
+  onResetTabs,
+  accentMode,
+  onAccentModeChange,
+  hasSelection,
+  health,
+  onRetry,
+  followClient,
+  onFollowClientChange,
+  clientStatus,
+  updates,
+  native,
+  updateBlockedReason,
+  theme,
+  onThemeChange,
+  accent,
+  onAccentChange,
   gamePath,
   onPathChange,
   patcherActive,
@@ -62,7 +107,11 @@ export default function Settings({
   const refreshCache = useCallback(async () => {
     setCacheLoading(true);
     try {
-      const [s, w, c] = await Promise.all([getSkinsDirSize(), getWorkDirSize(), getCustomsDirSize()]);
+      const [s, w, c] = await Promise.all([
+        getSkinsDirSize(),
+        getWorkDirSize(),
+        getCustomsDirSize(),
+      ]);
       setSkinsSize(s);
       setWorkSize(w);
       setCustomsSize(c);
@@ -146,12 +195,110 @@ export default function Settings({
     <div className="h-full w-full overflow-y-auto p-5">
       <section className="appearance-settings" aria-label="Appearance">
         <h2>Appearance</h2>
-        <div className="appearance-modes">{["dark", "light"].map(mode => <button key={mode} aria-pressed={theme === mode} className={theme === mode ? "chosen" : ""} onClick={() => onThemeChange(mode)}><div className={`theme-preview ${mode}`}><i/><span/><b/></div><strong>{mode === "dark" ? "Midnight" : "Daylight"}</strong><small>{theme === mode ? "Selected" : "Select appearance"}</small></button>)}</div>
-        <div className="accent-heading"><strong>Accent color</strong></div>
-        <div className="accent-options">{[{id:"lavender",label:"Lavender",color:"#a3b4fa"},{id:"ocean",label:"Ocean",color:"#6bbbf1"},{id:"mint",label:"Mint",color:"#83d7b5"},{id:"rose",label:"Rose",color:"#eea8c9"},{id:"amber",label:"Amber",color:"#e6c183"},{id:"graphite",label:"Graphite",color:"#b6becb"}].map(option => <button key={option.id} className={accent === option.id ? "chosen" : ""} aria-pressed={accent === option.id} onClick={() => onAccentChange(option.id)}><i style={{background:option.color}}/>{option.label}</button>)}</div>
-        
+        <div className="appearance-modes">
+          {["dark", "light"].map((mode) => (
+            <button
+              key={mode}
+              aria-pressed={theme === mode}
+              className={theme === mode ? "chosen" : ""}
+              onClick={() => onThemeChange(mode)}
+            >
+              <div className={`theme-preview ${mode}`}>
+                <i />
+                <span />
+                <b />
+              </div>
+              <strong>{mode === "dark" ? "Midnight" : "Daylight"}</strong>
+              <small>{theme === mode ? "Selected" : "Select appearance"}</small>
+            </button>
+          ))}
+        </div>
+        <div className="accent-heading">
+          <strong>Accent color</strong>
+          <div className="accent-mode-control" aria-label="Accent behavior">
+            <button
+              aria-pressed={accentMode !== "fixed"}
+              className={accentMode !== "fixed" ? "chosen" : ""}
+              onClick={() => onAccentModeChange("tab")}
+            >
+              Follow tabs
+            </button>
+            <button
+              aria-pressed={accentMode === "fixed"}
+              className={accentMode === "fixed" ? "chosen" : ""}
+              onClick={() => onAccentModeChange("fixed")}
+            >
+              Fixed color
+            </button>
+          </div>
+        </div>
+        {accentMode === "fixed" && (
+          <div className="accent-options">
+            {[
+              { id: "lavender", label: "Lavender", color: "#a3b4fa" },
+              { id: "ocean", label: "Ocean", color: "#6bbbf1" },
+              { id: "mint", label: "Mint", color: "#83d7b5" },
+              { id: "rose", label: "Rose", color: "#eea8c9" },
+              { id: "amber", label: "Amber", color: "#e6c183" },
+              { id: "graphite", label: "Graphite", color: "#b6becb" },
+            ].map((option) => (
+              <button
+                key={option.id}
+                className={accent === option.id ? "chosen" : ""}
+                aria-pressed={accent === option.id}
+                onClick={() => onAccentChange(option.id)}
+              >
+                <i style={{ background: option.color }} />
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
       </section>
-      <AppUpdateCard updates={updates} native={native} blockedReason={updateBlockedReason}/>
+      <SidebarSettings
+        items={sidebarItems}
+        preferences={navigation}
+        onMove={onMoveTab}
+        onToggle={onToggleTab}
+        onReset={onResetTabs}
+      />
+      <AppUpdateCard updates={updates} native={native} blockedReason={updateBlockedReason} />
+      <section className="client-settings">
+        <div>
+          <h2>Follow champion select</h2>
+          <p>Open your champion’s skins when you lock in.</p>
+          <small>
+            {!native
+              ? "Available in the Mac app."
+              : !followClient
+                ? "Off"
+                : clientStatus === "offline"
+                  ? "League client is closed."
+                  : clientStatus === "unavailable"
+                    ? "Waiting for the League client connection…"
+                    : clientStatus === "selecting"
+                      ? "Connected · Champion select"
+                      : "Connected to League"}
+          </small>
+        </div>
+        <button
+          className={`setting-switch ${followClient ? "on" : ""}`}
+          disabled={!native}
+          role="switch"
+          aria-checked={followClient}
+          aria-label="Follow champion select"
+          onClick={() => onFollowClientChange(!followClient)}
+        >
+          <span />
+        </button>
+      </section>
+      <PatcherHealthCard
+        hasSelection={hasSelection}
+        health={health}
+        native={native}
+        active={patcherActive}
+        onRetry={onRetry}
+      />
       {/* General */}
       <div className="pb-2">
         <span className="text-ink-muted text-[11px] font-medium tracking-wider uppercase select-none">
@@ -166,9 +313,7 @@ export default function Settings({
             <Power size={16} strokeWidth={1.5} className="text-ink-muted" />
             <div className="flex flex-col gap-0.5">
               <span className="text-ink text-sm">Launch at login</span>
-              <span className="text-ink-muted text-xs">
-                Start cstmSKN when you log in
-              </span>
+              <span className="text-ink-muted text-xs">Start cstmSKN when you log in</span>
             </div>
           </div>
           <button
@@ -258,7 +403,9 @@ export default function Settings({
         <div className="flex items-center justify-between px-4 py-3.5">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-ink text-sm">Patcher Data</span>
-            <span className="text-ink-muted text-xs">Temporary overlay files, rebuilt on apply</span>
+            <span className="text-ink-muted text-xs">
+              Temporary overlay files, rebuilt on apply
+            </span>
           </div>
           <div className="flex shrink-0 items-center gap-4">
             <span className="text-ink-secondary min-w-16 text-right text-sm tabular-nums">
@@ -284,8 +431,33 @@ export default function Settings({
         <p className="text-ink-muted mt-2 px-1 text-xs">Stop the patcher before clearing data.</p>
       )}
 
-      <details className="patcher-diagnostics"><summary>Diagnostics</summary><div><strong>Patcher diagnostics</strong><button className="primary-button" onClick={async () => { try { setDiagnostics(await getPatcherLog()); } catch(e) { setDiagnostics(String(e)); } }}>{diagnostics === null ? "View log" : "Refresh log"}</button></div>{diagnostics !== null && <pre>{diagnostics}</pre>}</details>
-      <details className="about-app"><summary>About cstmSKN</summary><p>Personal edition by silentrosehill. Based on Zushi by Mouadzz and contributors. Artwork © Riot Games.</p><p>Not affiliated with Riot Games.</p></details>
+      <details className="patcher-diagnostics">
+        <summary>Diagnostics</summary>
+        <div>
+          <strong>Patcher diagnostics</strong>
+          <button
+            className="primary-button"
+            onClick={async () => {
+              try {
+                setDiagnostics(await getPatcherLog());
+              } catch (e) {
+                setDiagnostics(String(e));
+              }
+            }}
+          >
+            {diagnostics === null ? "View log" : "Refresh log"}
+          </button>
+        </div>
+        {diagnostics !== null && <pre>{diagnostics}</pre>}
+      </details>
+      <details className="about-app">
+        <summary>About cstmSKN</summary>
+        <p>
+          Personal edition by silentrosehill. Based on Zushi by Mouadzz and contributors. Artwork ©
+          Riot Games.
+        </p>
+        <p>Not affiliated with Riot Games.</p>
+      </details>
       {pathError && <Toast message={pathError} onClose={() => setPathError(null)} />}
     </div>
   );

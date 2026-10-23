@@ -44,6 +44,8 @@ pub struct DownloadedSkin {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomEntry {
+    #[serde(default = "default_mod_kind")]
+    pub kind: String,
     #[serde(default)]
     pub champions: Vec<String>,
     pub name: String,
@@ -60,3 +62,5 @@ impl std::fmt::Debug for AppState {
             .finish()
     }
 }
+
+fn default_mod_kind() -> String { "skin".into() }

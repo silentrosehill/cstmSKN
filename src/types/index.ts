@@ -13,17 +13,17 @@ export type PatcherStatus =
   | { Error: string };
 
 export interface Champion {
-  id: string;     // "Aatrox" - used in DDragon image URLs
-  key: string;    // "266" - numeric ID, matches LeagueSkins repo structure
-  name: string;   // "Aatrox"
-  title: string;  // "the Darkin Blade"
+  id: string; // "Aatrox" - used in DDragon image URLs
+  key: string; // "266" - numeric ID, matches LeagueSkins repo structure
+  name: string; // "Aatrox"
+  title: string; // "the Darkin Blade"
   tags: string[]; // ["Fighter", "Tank"]
 }
 
 export interface Skin {
-  id: string;       // "266007" - skin ID from skin_ids.json; keys the LeagueSkins repo lookup
-  num: number;      // 7 - skinId % 1000, used for splash art URLs
-  name: string;     // "Blood Moon Aatrox" - display name + local download folder name
+  id: string; // "266007" - skin ID from skin_ids.json; keys the LeagueSkins repo lookup
+  num: number; // 7 - skinId % 1000, used for splash art URLs
+  name: string; // "Blood Moon Aatrox" - display name + local download folder name
   championId: string; // "Aatrox" - DDragon champion id for image URLs
   championName: string; // "Aatrox" - local download folder name (from base skin entry in skin_ids)
 }
@@ -45,9 +45,24 @@ export interface DownloadedSkin {
 }
 
 export interface CustomEntry {
+  kind?: ModKind;
   champions?: string[];
   name: string;
   file_path: string;
+}
+
+export type ModKind = "skin" | "announcer" | "voice" | "map" | "other";
+
+export interface HealthCheck {
+  id: string;
+  label: string;
+  state: "ok" | "error";
+  detail: string;
+}
+export interface ChampSelectState {
+  state: "offline" | "connected" | "selecting" | "unavailable";
+  championId: number | null;
+  locked: boolean;
 }
 
 export interface CustomMod extends CustomEntry {

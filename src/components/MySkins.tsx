@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
-import { Layers, Check, Info, X, Search } from "lucide-react";
+import { Layers, Check, Info, X, Search, Star } from "lucide-react";
 import { findChampionByName, championAvatar } from "../hooks/useChampions";
-import { lookupSplashNum, lookupChromaInfo, ensureChromaInfo, ensureSkinIds } from "../hooks/useSkinData";
+import {
+  lookupSplashNum,
+  lookupChromaInfo,
+  ensureChromaInfo,
+  ensureSkinIds,
+} from "../hooks/useSkinData";
 import type { DownloadedSkin } from "../types";
 import SkinPortrait from "./SkinPortrait";
 
@@ -32,6 +37,8 @@ type Selection = Record<string, string>;
 
 interface MySkinsProps {
   downloads: DownloadedSkin[];
+  isFavorite: (champion: string, skin: string) => boolean;
+  onFavorite: (champion: string, skin: string) => void;
   patcherActive: boolean;
   selection: Selection;
   onSelectionChange: (selection: Selection) => void;
@@ -41,8 +48,8 @@ interface MySkinsProps {
 function SkinThumb({ championName, skinName }: { championName: string; skinName: string }) {
   const champ = findChampionByName(championName);
   const num = lookupSplashNum(skinName);
-  if (!champ || num === null) return <div className="skin-portrait-placeholder"/>;
-  return <SkinPortrait championId={champ.id} skinNum={num} alt={skinName}/>;
+  if (!champ || num === null) return <div className="skin-portrait-placeholder" />;
+  return <SkinPortrait championId={champ.id} skinNum={num} alt={skinName} />;
 }
 
 function ChampAvatar({ championName }: { championName: string }) {
@@ -70,6 +77,8 @@ function ChampAvatar({ championName }: { championName: string }) {
 
 export default function MySkins({
   downloads,
+  isFavorite,
+  onFavorite,
   patcherActive,
   selection,
   onSelectionChange,
@@ -292,7 +301,7 @@ export default function MySkins({
                                 style={{
                                   background: selectedChroma.colors[1]
                                     ? `linear-gradient(135deg, ${selectedChroma.colors[0]} 0% 50%, ${selectedChroma.colors[1]} 50% 100%)`
-                                    : selectedChroma.colors[0] ?? "var(--color-gold-400)",
+                                    : (selectedChroma.colors[0] ?? "var(--color-gold-400)"),
                                 }}
                                 title={`Chroma: ${selectedChroma.dl.skin_name}`}
                               />
@@ -305,6 +314,19 @@ export default function MySkins({
                             </div>
                           </button>
 
+                          <button
+                            className={`star-button library-favorite ${isFavorite(champion, group.baseSkinName) ? "starred" : ""}`}
+                            aria-label={`${isFavorite(champion, group.baseSkinName) ? "Unfavorite" : "Favorite"} ${group.baseSkinName}`}
+                            aria-pressed={isFavorite(champion, group.baseSkinName)}
+                            onClick={() => onFavorite(champion, group.baseSkinName)}
+                          >
+                            <Star
+                              size={12}
+                              fill={
+                                isFavorite(champion, group.baseSkinName) ? "currentColor" : "none"
+                              }
+                            />
+                          </button>
                           {!patcherActive && group.base && (
                             <button
                               onClick={() => {
@@ -344,16 +366,13 @@ export default function MySkins({
                                   title={`${c.dl.skin_name}\n(right-click to delete)`}
                                   className={[
                                     "ring-offset-charcoal-400 relative h-4 w-4 shrink-0 rounded-sm transition-all",
-                                    patcherActive
-                                      ? "cursor-default opacity-50"
-                                      : "cursor-pointer",
+                                    patcherActive ? "cursor-default opacity-50" : "cursor-pointer",
                                     isSel
                                       ? "ring-gold-400 ring-2 ring-offset-1"
                                       : "ring-charcoal-50/30 hover:ring-charcoal-50/60 ring-1",
                                   ].join(" ")}
                                   style={{
-                                    background:
-                                      bg ?? "var(--color-charcoal-300, #3a3a3a)",
+                                    background: bg ?? "var(--color-charcoal-300, #3a3a3a)",
                                   }}
                                 >
                                   {isSel && (

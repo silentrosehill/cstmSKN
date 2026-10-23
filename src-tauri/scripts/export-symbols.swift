@@ -5,6 +5,7 @@ import Foundation
 // These assets are for Apple-platform UI, never the app's icon or logo.
 let output = CommandLine.arguments[1]
 let symbols = [
+    "mods":"puzzlepiece.extension", "loadouts":"slider.horizontal.3", "voice":"waveform", "map":"map", "announcer":"mic", "other":"square.on.circle",
     "new":"sparkles", "grid":"square.grid.2x2", "library":"square.stack.3d.up", "custom":"shippingbox",
     "enabled":"checkmark.circle", "settings":"slider.horizontal.3", "sidebar":"sidebar.left",
     "sort":"arrow.up.arrow.down", "chevron-down":"chevron.down", "star":"star",

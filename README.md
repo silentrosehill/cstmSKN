@@ -25,7 +25,7 @@ A personal macOS skin manager with a native glass interface, built on [Zushi](ht
 - Download and select skins directly from the gallery, or import custom packages with automatic champion detection and an import review.
 - One enabled look per champion across regular and custom skins, preserving other champions when replacing a look.
 - Resizable sidebar down to an icon rail, colored SF Symbols, and a full searchable Enabled Skins view.
-- Untinted native Liquid Glass sidebar on macOS 26+, with sidebar vibrancy on earlier systems; native title bar and refined glass controls.
+- Untinted native **Clear Liquid Glass** sidebar on macOS 26+, with behind-window HUD vibrancy on earlier systems; native title bar and refined glass controls.
 - Artwork-driven colors in the main content, light/dark appearances, and six manual accent colors.
 - Apple Silicon patcher compatibility with the newer League import layout, plus persistent diagnostics.
 
@@ -46,7 +46,7 @@ cstmSKN keeps its library and settings separate from the original Zushi app, und
 
 Changing an enabled look while the patcher is running rebuilds its selection. This is intended for preparing a game, and does not guarantee an immediate visual swap during an existing match.
 
-The sidebar’s expand control and **Enabled skins** section open the complete selection. Drag its edge to resize it, or collapse it to icons. **New Releases** checks Riot’s patch data when opened and periodically while visible. The neutral sidebar keeps its appearance as the selected splash changes the main content colors. Settings includes sidebar customization, tab or fixed accents, champion-select integration, patcher health, storage controls, and a diagnostics disclosure with the local patcher log.
+The sidebar’s expand control and **Enabled skins** section open the complete selection. Drag its edge to resize it, or collapse it to icons. **New Releases** checks Riot’s patch data when opened and periodically while visible. The neutral sidebar samples the real desktop and windows behind the app. Its window and webview backing are transparent, with no extra full-window blur layer or opaque panel. Splash artwork changes the main content colors. A browser preview cannot sample windows outside the browser. macOS Reduce Transparency is respected. Settings includes sidebar customization, tab or fixed accents, champion-select integration, patcher health, storage controls, and a diagnostics disclosure with the local patcher log.
 
 ## Updates
 
@@ -88,7 +88,7 @@ The script checks source and bundled application versions, runs the test suites 
 
 ## Validation
 
-v0.1.19 passed TypeScript/Vite production compilation, native Rust compilation, 50 frontend tests, 13 Rust tests, and code-signature checks. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
+v0.1.20 passed TypeScript/Vite production compilation, native Rust compilation, 50 frontend tests, 13 Rust tests, code-signature checks, and offscreen AppKit material checks for Clear glass, the behind-window fallback, transparent backing, resizing, and unchanged webview input bounds. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
 
 The patcher binary is unchanged from the user-confirmed working release. Its Mach-O import fix previously passed 6 native regression cases and an offline check against the installed game. New coverage includes category coexistence, real archive imports, duplicate import names, legacy metadata migration, loadout restore, local lock-in/trades/rerolls, sidebar preferences, and tab accents. The latest interface was checked through compilation and automated tests; live window interactions and a live champion-select session were not manually verified.
 

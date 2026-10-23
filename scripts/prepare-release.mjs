@@ -60,6 +60,18 @@ function run(command, args, environment = env) {
 if (!values["skip-build"]) {
   run("npm", ["test"]);
   run("cargo", ["test", "--manifest-path", "src-tauri/Cargo.toml", "--lib"]);
+  const nativeChecks = join(target, "sidebar-material-checks");
+  run("clang", [
+    "-fobjc-arc",
+    "-framework",
+    "AppKit",
+    "-framework",
+    "WebKit",
+    "src-tauri/tests/sidebar_material.m",
+    "-o",
+    nativeChecks,
+  ]);
+  run(nativeChecks, []);
   run("npm", ["run", "tauri", "--", "build", "--bundles", "app"]);
 }
 await mkdir(output, { recursive: true });

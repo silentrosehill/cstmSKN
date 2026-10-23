@@ -2,7 +2,10 @@
 
 # cstmSKN
 
-A personal macOS skin manager with a native glass interface, built on [Zushi](https://github.com/Mouadzz/zushi). Maintained by **silentrosehill**.
+
+I DONT TAKE CREDIT FOR ANYTHING HERE, THIS VERSION IS BASED, BUILT AND MODIFIED FROM ZUSHI v0.1.14 ALL CREDIT TO HIM: https://github.com/Mouadzz/zushi
+
+
 
 [Download the latest release](https://github.com/silentrosehill/cstmSKN/releases/latest)
 

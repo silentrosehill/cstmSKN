@@ -1,6 +1,6 @@
 [package]
 name = "zushi"
-version = "0.1.13"
+version = "0.1.17"
 description = "A lightweight desktop app to browse and apply League of Legends skins."
 authors = ["you"]
 license = "GPL-3.0"
@@ -12,6 +12,7 @@ name = "zushi_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
+cc = "1"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]

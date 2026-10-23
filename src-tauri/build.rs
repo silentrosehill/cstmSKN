@@ -1,5 +1,10 @@
 fn main() {
     tauri_build::build();
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        println!("cargo:rerun-if-changed=native/sidebar_glass.m");
+        cc::Build::new().file("native/sidebar_glass.m").flag("-fobjc-arc").compile("cstmskn_sidebar_glass");
+        println!("cargo:rustc-link-lib=framework=AppKit");
+    }
 
     // Embed Info.plist in the Mach-O binary so macOS Authorization Services
     // recognise this as a proper app (required for AuthorizationCreate).

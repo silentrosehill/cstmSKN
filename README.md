@@ -8,12 +8,15 @@ A personal macOS skin manager with a native glass interface, built on [Zushi](ht
 
 ## Features
 
-- Champion gallery with large skin previews, arrow-key navigation, thumbnails, and chromas.
-- Download and select skins directly from the gallery.
-- Import `.fantome` and `.zip` custom skins with automatic champion detection, including loose WAD folders.
-- One enabled look per champion across regular and custom skins; replacing a look preserves other champions.
-- Compact sidebar selection and a full searchable Enabled skins view.
-- Native macOS title bar, translucent sidebar, light/dark appearances, and six accent colors.
+- **New Releases** automatically lists skins added in the current Riot patch and opens them directly in the gallery.
+- Champion browsing with alphabetical sections, an A–Z jump bar, release-date sorting, favorites, and search for champion or skin names.
+- Large skin previews, arrow-key navigation, thumbnail filmstrip, chromas, and colored rarity badges from client metadata.
+- Portrait loading-screen artwork in Library and Enabled Skins.
+- Download and select skins directly from the gallery, or import `.fantome` and `.zip` custom skins with automatic champion detection.
+- One enabled look per champion across regular and custom skins, preserving other champions when replacing a look.
+- Resizable sidebar down to an icon rail, colored SF Symbols, and a full searchable Enabled Skins view.
+- Untinted native Liquid Glass sidebar on macOS 26+, with sidebar vibrancy on earlier systems; native title bar and refined glass controls.
+- Artwork-driven colors in the main content, light/dark appearances, and six manual accent colors.
 - Apple Silicon patcher compatibility with the newer League import layout, plus persistent diagnostics.
 
 ## Install
@@ -33,7 +36,7 @@ cstmSKN keeps its library and settings separate from the original Zushi app, und
 
 Changing an enabled look while the patcher is running rebuilds its selection. This is intended for preparing a game, and does not guarantee an immediate visual swap during an existing match.
 
-The sidebar's expand control and **Enabled skins** section open the complete selection. Settings includes themes, storage controls, and a diagnostics disclosure with the local patcher log.
+The sidebar’s expand control and **Enabled skins** section open the complete selection. Drag its edge to resize it, or collapse it to icons. **New Releases** checks Riot’s patch data when opened and periodically while visible. The neutral sidebar keeps its appearance as the selected splash changes the main content colors. Settings includes themes, storage controls, and a diagnostics disclosure with the local patcher log.
 
 ## Build
 
@@ -61,7 +64,11 @@ clang++ -std=c++20 mod-tools/tests/macho_imports.cpp -o /tmp/cstmskn-macho-tests
 
 ## Validation
 
-The release passed TypeScript/Vite production compilation, native Rust compilation, 14 selection tests, 7 Rust tests, and code-signature checks. The Mach-O import fix also passed 6 native regression cases and an offline check against the installed game. A user-confirmed test verified that the skin applied in-game. The later interface cleanup retained the same working patcher binary; its live window interactions were not manually verified.
+v0.1.17 passed TypeScript/Vite production compilation, native Rust compilation, 29 frontend tests, 7 Rust tests, and code-signature checks. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
+
+The patcher binary is unchanged from the user-confirmed working release. Its Mach-O import fix previously passed 6 native regression cases and an offline check against the installed game. The latest interface was checked through compilation and automated tests; live window interactions were not manually verified.
+
+See [ASSETS.md](ASSETS.md) for Apple interface assets and Riot metadata sources.
 
 ## Credits and license
 

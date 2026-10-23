@@ -44,6 +44,10 @@ export function splashUrl(championId: string, skinNum: number): string {
   return `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${championId}_${skinNum}.jpg`;
 }
 
+export function loadingScreenUrl(championId: string, skinNum: number): string {
+  return `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${championId}_${skinNum}.jpg`;
+}
+
 export function ensureChampions(): Promise<Champion[]> {
   if (championsCache) return Promise.resolve(championsCache);
 

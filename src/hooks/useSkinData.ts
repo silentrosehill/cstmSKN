@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { getCached, getStale, setCache } from "../lib/cache";
+import { ensureSkinMetadata } from "../lib/skinMetadata";
 import type { Champion, Skin, Chroma, SkinGroup } from "../types";
 
 const SKIN_IDS_URL =
   "https://raw.githubusercontent.com/Alban1911/LeagueSkins/main/resources/en/skin_ids.json";
 const TREE_API_URL =
   "https://api.github.com/repos/Alban1911/LeagueSkins/git/trees/main?recursive=1";
-const SKINS_JSON_URL =
-  "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/skins.json";
 
 const SKIN_IDS_CACHE_KEY = "zushi:skin_ids";
 // _v2 invalidates the stale name-based cache from older builds.
@@ -15,6 +14,7 @@ const REPO_ZIPS_CACHE_KEY = "zushi:repo_files_v2";
 const CHROMAS_CACHE_KEY = "zushi:chromas";
 
 let skinIdsCache: Record<string, string> | null = null;
+let skinIdsPending: Promise<Record<string, string>> | null = null;
 let repoZipsCache: Map<string, string> | null = null;
 let chromaInfoCache: Map<number, { colors: string[]; parentId: number }> | null = null;
 
@@ -49,7 +49,8 @@ export function ensureSkinIds(): Promise<Record<string, string>> {
     return Promise.resolve(cached);
   }
 
-  return fetch(SKIN_IDS_URL)
+  if (skinIdsPending) return skinIdsPending;
+  skinIdsPending = fetch(SKIN_IDS_URL)
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
@@ -66,7 +67,8 @@ export function ensureSkinIds(): Promise<Record<string, string>> {
         return stale;
       }
       throw err;
-    });
+    }).finally(() => { skinIdsPending = null; });
+  return skinIdsPending;
 }
 
 export function ensureRepoZips(): Promise<Map<string, string>> {
@@ -123,21 +125,11 @@ export function ensureChromaInfo(): Promise<Map<number, { colors: string[]; pare
     return Promise.resolve(chromaInfoCache);
   }
 
-  return fetch(SKINS_JSON_URL)
-    .then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    })
-    .then((data: Record<string, { id: number; chromas?: { id: number; colors?: string[] }[] }>) => {
-      const map = new Map<number, { colors: string[]; parentId: number }>();
-      for (const [, skin] of Object.entries(data)) {
-        if (!skin.chromas) continue;
-        for (const c of skin.chromas) {
-          map.set(c.id, { colors: c.colors ?? [], parentId: skin.id });
-        }
-      }
+  return ensureSkinMetadata()
+    .then(metadata => {
+      const map = new Map(Object.entries(metadata.chromas).map(([id, info]) => [Number(id), info]));
       chromaInfoCache = map;
-      setCache(CHROMAS_CACHE_KEY, [...map.entries()]);
+      if (map.size) setCache(CHROMAS_CACHE_KEY, [...map.entries()]);
       return map;
     })
     .catch(() => {
@@ -311,9 +303,7 @@ export function isSkinAvailable(skin: Skin): boolean {
 
 export function useSkinData(champion: Champion | null) {
   const [skinIds, setSkinIds] = useState<Record<string, string> | null>(skinIdsCache);
-  const [skins, setSkins] = useState<Skin[]>([]);
-  const [groups, setGroups] = useState<SkinGroup[]>([]);
-  const [loading, setLoading] = useState(!skinIdsCache || !repoZipsCache);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -325,15 +315,10 @@ export function useSkinData(champion: Champion | null) {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    if (!champion || !skinIds) {
-      setSkins([]);
-      setGroups([]);
-      return;
-    }
-    setSkins(getSkinsForChampion(champion, skinIds));
-    setGroups(getSkinsGroupedForChampion(champion, skinIds));
-  }, [champion, skinIds]);
+  // Derive the gallery in the same render as its metadata. An effect-backed
+  // copy could initialize a search/patch target against the previous skin list.
+  const skins = useMemo(() => champion && skinIds ? getSkinsForChampion(champion, skinIds) : [], [champion, skinIds]);
+  const groups = useMemo(() => champion && skinIds ? getSkinsGroupedForChampion(champion, skinIds) : [], [champion, skinIds]);
 
   const getSkins = useCallback(
     (champ: Champion): Skin[] => {

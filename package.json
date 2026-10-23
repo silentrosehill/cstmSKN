@@ -1,13 +1,13 @@
 {
   "name": "cstmskn",
-  "version": "0.1.13",
+  "version": "0.1.17",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "tauri": "tauri",
-    "test": "node --experimental-strip-types --test tests/selection.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

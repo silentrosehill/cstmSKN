@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { Layers, Check, Info, X, Search } from "lucide-react";
-import { splashUrl, findChampionByName, championAvatar } from "../hooks/useChampions";
-import { lookupSplashNum, lookupChromaInfo, ensureChromaInfo } from "../hooks/useSkinData";
+import { findChampionByName, championAvatar } from "../hooks/useChampions";
+import { lookupSplashNum, lookupChromaInfo, ensureChromaInfo, ensureSkinIds } from "../hooks/useSkinData";
 import type { DownloadedSkin } from "../types";
+import SkinPortrait from "./SkinPortrait";
 
 function useChromaReady(): boolean {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    ensureChromaInfo()
+    Promise.all([ensureSkinIds(), ensureChromaInfo()])
       .then(() => {
         if (!cancelled) setReady(true);
       })
@@ -38,34 +39,10 @@ interface MySkinsProps {
 }
 
 function SkinThumb({ championName, skinName }: { championName: string; skinName: string }) {
-  const [failed, setFailed] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const champ = findChampionByName(championName);
   const num = lookupSplashNum(skinName);
-
-  if (!champ || num === null || failed) {
-    return <div className="bg-charcoal-600 h-full w-full" />;
-  }
-
-  return (
-    <>
-      {!loaded && (
-        <div className="from-charcoal-600 via-charcoal-400 to-charcoal-600 animate-shimmer absolute inset-0 bg-linear-to-r bg-size-[200%_100%]" />
-      )}
-      <img
-        src={splashUrl(champ.id, num)}
-        alt={skinName}
-        className={[
-          "h-full w-full object-cover object-[center_20%]",
-          loaded ? "opacity-100" : "opacity-0",
-        ].join(" ")}
-        loading="lazy"
-        draggable={false}
-        onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
-      />
-    </>
-  );
+  if (!champ || num === null) return <div className="skin-portrait-placeholder"/>;
+  return <SkinPortrait championId={champ.id} skinNum={num} alt={skinName}/>;
 }
 
 function ChampAvatar({ championName }: { championName: string }) {

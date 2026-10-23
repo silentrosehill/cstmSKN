@@ -1,5 +1,17 @@
-import { useState, useEffect, useMemo } from "react";
-import { Layers, Check, Info, X, Search, Star } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import {
+  Layers,
+  Check,
+  Search,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Trash2,
+  Loader2,
+  X,
+} from "lucide-react";
 import { findChampionByName, championAvatar } from "../hooks/useChampions";
 import {
   lookupSplashNum,
@@ -7,34 +19,19 @@ import {
   ensureChromaInfo,
   ensureSkinIds,
 } from "../hooks/useSkinData";
+import {
+  groupLibrarySkins,
+  groupDownloads,
+  deckFrontIndex,
+  deckVariant,
+  deckTarget,
+} from "../lib/libraryDeck";
+import type { ChampionDeck } from "../lib/libraryDeck";
 import type { DownloadedSkin } from "../types";
 import SkinPortrait from "./SkinPortrait";
-
-function useChromaReady(): boolean {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([ensureSkinIds(), ensureChromaInfo()])
-      .then(() => {
-        if (!cancelled) setReady(true);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  return ready;
-}
-
-// base is null when the user only owns chromas of this base.
-type DownloadGroup = {
-  base: DownloadedSkin | null;
-  baseSkinName: string;
-  chromas: { dl: DownloadedSkin; colors: string[] }[];
-};
+import SystemIcon from "./SystemIcon";
 
 type Selection = Record<string, string>;
-
 interface MySkinsProps {
   downloads: DownloadedSkin[];
   isFavorite: (champion: string, skin: string) => boolean;
@@ -45,33 +42,314 @@ interface MySkinsProps {
   onDelete: (championName: string, skinName: string) => Promise<void>;
 }
 
-function SkinThumb({ championName, skinName }: { championName: string; skinName: string }) {
-  const champ = findChampionByName(championName);
-  const num = lookupSplashNum(skinName);
-  if (!champ || num === null) return <div className="skin-portrait-placeholder" />;
-  return <SkinPortrait championId={champ.id} skinNum={num} alt={skinName} />;
+function SkinThumb({ champion, name }: { champion: string; name: string }) {
+  const owner = findChampionByName(champion);
+  const num = lookupSplashNum(name);
+  return owner && num !== null ? (
+    <SkinPortrait championId={owner.id} skinNum={num} alt={name} />
+  ) : (
+    <span className="skin-portrait-placeholder">
+      <Layers size={24} />
+    </span>
+  );
 }
 
-function ChampAvatar({ championName }: { championName: string }) {
+function ChampionAvatar({ name }: { name: string }) {
   const [failed, setFailed] = useState(false);
-  const champ = findChampionByName(championName);
-
-  if (!champ || failed) {
-    return (
-      <div className="bg-charcoal-500 text-ink-muted flex h-8 w-8 items-center justify-center rounded text-[10px]">
-        {championName.charAt(0)}
-      </div>
-    );
-  }
-
-  return (
+  const champion = findChampionByName(name);
+  return champion && !failed ? (
     <img
-      src={championAvatar(champ.id)}
-      alt={championName}
-      className="h-8 w-8 rounded object-cover"
-      draggable={false}
+      className="deck-champion-avatar"
+      src={championAvatar(champion.id)}
+      alt=""
       onError={() => setFailed(true)}
     />
+  ) : (
+    <span className="deck-avatar-fallback">{name[0]}</span>
+  );
+}
+
+function ChampionSkinDeck({
+  deck,
+  selected,
+  disabled,
+  isFavorite,
+  onFavorite,
+  onChoose,
+  onDelete,
+}: {
+  deck: ChampionDeck;
+  selected?: string;
+  disabled: boolean;
+  isFavorite: (name: string) => boolean;
+  onFavorite: (name: string) => void;
+  onChoose: (name: string, enabled: boolean) => void;
+  onDelete: (downloads: DownloadedSkin[]) => Promise<void>;
+}) {
+  const [lastFront, setLastFront] = useState("");
+  const [variants, setVariants] = useState<Record<string, string>>({});
+  const [leaving, setLeaving] = useState<{ name: string; direction: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [removePending, setRemovePending] = useState<"one" | "group" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const locked = useRef(false);
+  const menu = useRef<HTMLDetailsElement>(null);
+  const frontIndex = deckFrontIndex(deck.groups, selected, lastFront);
+  const front = deck.groups[frontIndex];
+  const current = deckVariant(front, selected ?? variants[front.name]);
+  const active = current.skin_name === selected;
+  const busy = disabled || deleting || !!leaving;
+  const variantCount = groupDownloads(front).length;
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    []
+  );
+  function chooseGroup(index: number, direction = 1) {
+    if (busy || locked.current) return;
+    const next = deck.groups[index];
+    if (!next) return;
+    const download = deckVariant(next, variants[next.name]);
+    if (next.name !== front.name) {
+      locked.current = true;
+      setLeaving({ name: front.name, direction });
+      timer.current = setTimeout(() => {
+        setLeaving(null);
+        locked.current = false;
+        timer.current = null;
+      }, 300);
+    }
+    setLastFront(next.name);
+    setVariants((value) => ({
+      ...value,
+      [front.name]: current.skin_name,
+      [next.name]: download.skin_name,
+    }));
+    onChoose(download.skin_name, true);
+  }
+  function cycle(direction: number) {
+    if (deck.groups.length > 1)
+      chooseGroup(deckTarget(frontIndex, deck.groups.length, direction), direction);
+  }
+  function chooseVariant(name: string) {
+    if (busy || locked.current) return;
+    setLastFront(front.name);
+    setVariants((value) => ({ ...value, [front.name]: name }));
+    onChoose(name, name !== selected);
+  }
+  async function remove() {
+    if (!removePending || busy) return;
+    const downloads = removePending === "group" ? groupDownloads(front) : [current];
+    setDeleting(true);
+    setError(null);
+    try {
+      await onDelete(downloads);
+      setRemovePending(null);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setDeleting(false);
+    }
+  }
+  return (
+    <article
+      className={`champion-skin-deck ${active ? "has-selection" : ""}`}
+      tabIndex={0}
+      aria-label={`${deck.champion} installed skins`}
+      onKeyDown={(event) => {
+        if (
+          event.altKey ||
+          event.metaKey ||
+          event.ctrlKey ||
+          menu.current?.contains(event.target as Node)
+        )
+          return;
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          cycle(event.key === "ArrowLeft" ? -1 : 1);
+        }
+      }}
+    >
+      <header className="skin-deck-heading">
+        <ChampionAvatar name={deck.champion} />
+        <div>
+          <h2>{deck.champion}</h2>
+          <span>
+            {deck.groups.length} {deck.groups.length === 1 ? "skin" : "skins"}
+          </span>
+        </div>
+        <details className="skin-deck-menu" ref={menu}>
+          <summary aria-label={`Manage ${deck.champion} downloads`}>
+            <MoreHorizontal size={17} />
+          </summary>
+          <div>
+            <button
+              disabled={busy}
+              onClick={() => {
+                setRemovePending("one");
+                if (menu.current) menu.current.open = false;
+              }}
+            >
+              <Trash2 size={12} />
+              Remove this {current.skin_name === front.name ? "skin" : "chroma"}
+            </button>
+            {variantCount > 1 && (
+              <button
+                disabled={busy}
+                onClick={() => {
+                  setRemovePending("group");
+                  if (menu.current) menu.current.open = false;
+                }}
+              >
+                <Trash2 size={12} />
+                Remove skin & chromas
+              </button>
+            )}
+          </div>
+        </details>
+      </header>
+      <div className="skin-deck-stack" role="group" aria-label={`${deck.champion} skin cards`}>
+        {deck.groups.map((group, index) => {
+          const depth = deckTarget(index, deck.groups.length, -frontIndex);
+          const departing = leaving?.name === group.name;
+          if (depth > 2 && !departing) return null;
+          const download = deckVariant(
+            group,
+            depth === 0 ? current.skin_name : variants[group.name]
+          );
+          return (
+            <button
+              key={group.name}
+              className={`skin-deck-card ${depth === 0 ? "front" : ""} ${departing ? `departing ${leaving.direction < 0 ? "to-right" : "to-left"}` : ""}`}
+              style={
+                {
+                  "--deck-depth": Math.min(depth, 3),
+                  zIndex: departing ? 5 : 4 - depth,
+                } as CSSProperties
+              }
+              aria-label={`${depth === 0 && active ? "Disable" : "Select"} ${download.skin_name}`}
+              title={download.skin_name}
+              aria-pressed={selected === download.skin_name}
+              tabIndex={depth === 0 ? 0 : -1}
+              disabled={busy}
+              onClick={() =>
+                depth === 0 ? chooseVariant(current.skin_name) : chooseGroup(index, 1)
+              }
+            >
+              <SkinThumb champion={deck.champion} name={group.name} />
+              <span className="skin-deck-art-shade" />
+              {depth === 0 && active && (
+                <span className="skin-deck-selected">
+                  <Check size={12} />
+                </span>
+              )}
+              {depth === 0 && current.skin_name !== front.name && (
+                <span className="skin-deck-chroma-badge">Chroma</span>
+              )}
+            </button>
+          );
+        })}
+        <button
+          className={`star-button skin-deck-favorite ${isFavorite(current.skin_name) ? "starred" : ""}`}
+          aria-label={`${isFavorite(current.skin_name) ? "Unfavorite" : "Favorite"} ${current.skin_name}`}
+          aria-pressed={isFavorite(current.skin_name)}
+          onClick={() => onFavorite(current.skin_name)}
+        >
+          <Star size={13} fill={isFavorite(current.skin_name) ? "currentColor" : "none"} />
+        </button>
+      </div>
+      <div className="skin-deck-caption">
+        <button
+          className="deck-cycle"
+          disabled={busy || deck.groups.length < 2}
+          aria-label={`Previous ${deck.champion} skin`}
+          onClick={() => cycle(-1)}
+        >
+          <SystemIcon name="back" fallback={ChevronLeft} size={14} />
+        </button>
+        <div aria-live="polite">
+          <h3 title={current.skin_name}>{current.skin_name}</h3>
+          <span>
+            {frontIndex + 1} / {deck.groups.length}
+            {active ? " · Selected" : ""}
+          </span>
+        </div>
+        <button
+          className="deck-cycle"
+          disabled={busy || deck.groups.length < 2}
+          aria-label={`Next ${deck.champion} skin`}
+          onClick={() => cycle(1)}
+        >
+          <SystemIcon name="next" fallback={ChevronRight} size={14} />
+        </button>
+      </div>
+      {front.chromas.length > 0 && (
+        <div
+          className="skin-deck-chromas"
+          role="group"
+          aria-label={`Downloaded ${front.name} variants`}
+        >
+          {front.base && (
+            <button
+              className={`deck-base-swatch ${current.skin_name === front.base.skin_name ? "current" : ""}`}
+              title={front.name}
+              aria-label={`Select base ${front.name}`}
+              aria-pressed={selected === front.base.skin_name}
+              disabled={busy}
+              onClick={() => chooseVariant(front.base!.skin_name)}
+            >
+              <span />
+            </button>
+          )}
+          {front.chromas.map((chroma) => (
+            <button
+              key={chroma.download.skin_name}
+              title={chroma.download.skin_name}
+              aria-label={`Select ${chroma.download.skin_name}`}
+              aria-pressed={selected === chroma.download.skin_name}
+              disabled={busy}
+              className={current.skin_name === chroma.download.skin_name ? "current" : ""}
+              style={{
+                background:
+                  chroma.colors.length > 1
+                    ? `linear-gradient(135deg,${chroma.colors[0]} 50%,${chroma.colors[1]} 50%)`
+                    : (chroma.colors[0] ?? "var(--accent)"),
+              }}
+              onClick={() => chooseVariant(chroma.download.skin_name)}
+            >
+              {selected === chroma.download.skin_name && <Check size={9} />}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="deck-error">
+          {error}
+        </p>
+      )}
+      {removePending && (
+        <div className="deck-delete-confirm">
+          <Trash2 size={22} />
+          <h3>Remove {removePending === "group" ? "skin and chromas" : "this download"}?</h3>
+          <p>{current.skin_name}</p>
+          <div>
+            <button
+              className="quiet-button"
+              disabled={deleting}
+              onClick={() => setRemovePending(null)}
+            >
+              Cancel
+            </button>
+            <button className="danger-button" disabled={deleting} onClick={() => void remove()}>
+              {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              Remove
+            </button>
+          </div>
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -84,317 +362,105 @@ export default function MySkins({
   onSelectionChange,
   onDelete,
 }: MySkinsProps) {
-  const chromaReady = useChromaReady(); // re-render once Community Dragon chroma data lands
-
-  const toggleSkin = (championName: string, skinName: string) => {
-    if (patcherActive) return;
-    if (selection[championName] === skinName) {
-      const next = { ...selection };
-      delete next[championName];
-      onSelectionChange(next);
-    } else {
-      onSelectionChange({ ...selection, [championName]: skinName });
-    }
-  };
-
-  const handleDelete = async (championName: string, skinName: string) => {
-    if (patcherActive) return;
-    // Also deselect if this skin was selected
-    if (selection[championName] === skinName) {
-      const next = { ...selection };
-      delete next[championName];
-      onSelectionChange(next);
-    }
-    await onDelete(championName, skinName);
-  };
-
-  const handleDeleteGroup = async (championName: string, skinNames: string[]) => {
-    if (patcherActive || skinNames.length === 0) return;
-    if (skinNames.includes(selection[championName])) {
-      const next = { ...selection };
-      delete next[championName];
-      onSelectionChange(next);
-    }
-    await Promise.all(skinNames.map((n) => onDelete(championName, n)));
-  };
-
-  const selectedCount = Object.keys(selection).length;
+  const [metadataReady, setMetadataReady] = useState(false);
   const [search, setSearch] = useState("");
-
-  // Grouping scans the ~9k skin database per skin, so memoize it on downloads
-  // (and chroma readiness) instead of rebuilding on every search/selection render.
-  const grouped = useMemo(() => {
-    void chromaReady; // recompute once Community Dragon chroma data lands
-    const map = new Map<string, DownloadGroup[]>();
-    for (const skin of downloads) {
-      const champGroups = map.get(skin.champion_name) ?? [];
-      const chromaInfo = lookupChromaInfo(skin.skin_name);
-      if (chromaInfo) {
-        let g = champGroups.find((g) => g.baseSkinName === chromaInfo.parentName);
-        if (!g) {
-          g = { base: null, baseSkinName: chromaInfo.parentName, chromas: [] };
-          champGroups.push(g);
-        }
-        g.chromas.push({ dl: skin, colors: chromaInfo.colors });
-      } else {
-        let g = champGroups.find((g) => g.baseSkinName === skin.skin_name);
-        if (!g) {
-          g = { base: skin, baseSkinName: skin.skin_name, chromas: [] };
-          champGroups.push(g);
-        } else {
-          g.base = skin;
-        }
-      }
-      map.set(skin.champion_name, champGroups);
-    }
-    return map;
-  }, [downloads, chromaReady]);
-
-  const filteredEntries = useMemo(() => {
-    const entries = [...grouped.entries()];
-    const query = search.trim().toLowerCase();
-    return query ? entries.filter(([champion]) => champion.toLowerCase().includes(query)) : entries;
-  }, [grouped, search]);
-
-  if (downloads.length === 0) {
-    return (
-      <div className="flex h-full flex-col">
-        <div className="border-border flex shrink-0 items-center border-b px-4 py-3">
-          <span className="text-ink-muted text-sm select-none">0 skins</span>
-        </div>
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <div className="bg-charcoal-300 flex h-12 w-12 items-center justify-center rounded-full">
-            <Layers size={20} strokeWidth={1.5} className="text-ink-muted" />
-          </div>
-          <div>
-            <p className="text-ink-secondary text-sm">No skins downloaded yet</p>
-            <p className="text-ink-muted mt-1 text-xs">
-              Browse champions and download skins to get started
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+  useEffect(() => {
+    let live = true;
+    void Promise.all([ensureSkinIds(), ensureChromaInfo()])
+      .then(() => {
+        if (live) setMetadataReady(true);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  const decks = useMemo(() => {
+    void metadataReady;
+    return groupLibrarySkins(downloads, lookupChromaInfo);
+  }, [downloads, metadataReady]);
+  const query = search.trim().toLowerCase();
+  const filtered = decks.filter((deck) =>
+    `${deck.champion} ${deck.groups.flatMap((group) => groupDownloads(group).map((download) => download.skin_name)).join(" ")}`
+      .toLowerCase()
+      .includes(query)
+  );
+  const selectedCount = decks.filter((deck) =>
+    deck.groups.some((group) =>
+      groupDownloads(group).some((download) => download.skin_name === selection[deck.champion])
+    )
+  ).length;
+  function choose(champion: string, name: string, enabled: boolean) {
+    if (patcherActive) return;
+    const next = { ...selection };
+    if (enabled) next[champion] = name;
+    else if (next[champion] === name) delete next[champion];
+    onSelectionChange(next);
   }
-
-  let baseSkinCount = 0;
-  for (const groups of grouped.values()) baseSkinCount += groups.length;
-
+  async function remove(champion: string, items: DownloadedSkin[]) {
+    if (patcherActive) return;
+    if (items.some((item) => selection[champion] === item.skin_name)) {
+      const next = { ...selection };
+      delete next[champion];
+      onSelectionChange(next);
+    }
+    await Promise.all(items.map((item) => onDelete(item.champion_name, item.skin_name)));
+  }
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-border flex shrink-0 items-center gap-3 border-b px-4 py-3">
-        <span className="text-ink-muted text-sm tabular-nums select-none">
-          {baseSkinCount} {baseSkinCount === 1 ? "skin" : "skins"}
-        </span>
-
-        <div className="relative max-w-64 flex-1">
-          <Search
-            size={14}
-            strokeWidth={1.5}
-            className="text-ink-muted pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2"
-          />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter by champion"
-            className="bg-charcoal-500 border-border text-ink placeholder:text-ink-muted focus:border-gold-500/60 w-full rounded-sm border py-1.5 pr-3 pl-8 text-sm transition-colors focus:outline-none"
-          />
-        </div>
-
-        {selectedCount > 0 && (
-          <span className="text-gold-400 ml-auto text-sm font-medium tabular-nums select-none">
-            {selectedCount} selected
+    <div className="library-decks-view">
+      <div className="library-decks-toolbar">
+        <span className="collection-count">
+          {decks.length} {decks.length === 1 ? "champion" : "champions"}
+          <span className="library-total-skins">
+            {" "}
+            · {decks.reduce((total, deck) => total + deck.groups.length, 0)} skins
           </span>
+        </span>
+        <div className="search-field">
+          <Search size={15} />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search library"
+            aria-label="Search installed champions and skins"
+          />
+          {search && (
+            <button aria-label="Clear search" onClick={() => setSearch("")}>
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        {selectedCount > 0 && (
+          <span className="library-selection-count">{selectedCount} selected</span>
         )}
       </div>
-
-      <div className="bg-gold-400/8 border-gold-400/15 mx-4 mt-3 mb-1 flex items-start gap-2.5 rounded-lg border px-3 py-2.5">
-        <Info size={14} strokeWidth={1.5} className="text-gold-400 mt-0.5 shrink-0" />
-        <p className="text-ink-secondary text-xs leading-relaxed">
-          <span className="text-gold-400 font-medium">Keep the default skin</span> selected in
-          champion select. If you use a skin you already own, it will override your patched one.
-        </p>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col">
-          {filteredEntries.length === 0 && (
-            <div className="text-ink-muted flex h-32 items-center justify-center text-sm">
-              No champions match "{search}"
-            </div>
-          )}
-          {filteredEntries.map(([champion, groups]) => {
-            const selectedSkin = selection[champion];
-            const baseCount = groups.length;
-            return (
-              <div
-                key={champion}
-                className="border-border flex items-start gap-3 border-b px-4 py-3"
-              >
-                <div className="flex w-32 shrink-0 items-center gap-2.5 pt-0.5">
-                  <ChampAvatar championName={champion} />
-                  <div className="min-w-0">
-                    <p className="text-ink truncate text-xs font-medium">{champion}</p>
-                    <p className="text-ink-muted truncate text-[10px]">
-                      {baseCount} {baseCount === 1 ? "skin" : "skins"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex min-w-0 flex-1 flex-wrap gap-2">
-                  {groups.map((group) => {
-                    const baseSelected = selectedSkin === group.baseSkinName;
-                    const selectedChroma = group.chromas.find(
-                      (c) => c.dl.skin_name === selectedSkin
-                    );
-                    const anySelected = baseSelected || !!selectedChroma;
-                    const baseClickable = !patcherActive && group.base !== null;
-
-                    const hasChromas = group.chromas.length > 0;
-                    return (
-                      <div
-                        key={group.baseSkinName}
-                        className={
-                          hasChromas
-                            ? "bg-charcoal-500/70 border-charcoal-300/25 rounded-md border p-1.5"
-                            : ""
-                        }
-                      >
-                        <div className="relative">
-                          <button
-                            onClick={() => {
-                              if (!baseClickable || !group.base) return;
-                              toggleSkin(group.base.champion_name, group.base.skin_name);
-                            }}
-                            disabled={!baseClickable}
-                            className={[
-                              "library-skin relative h-24 w-32 overflow-hidden rounded transition-all",
-                              patcherActive
-                                ? "cursor-default opacity-50"
-                                : group.base
-                                  ? "cursor-pointer"
-                                  : "cursor-default",
-                              anySelected
-                                ? "ring-gold-400 ring-offset-charcoal-400 ring-2 ring-offset-1"
-                                : "ring-charcoal-50/20 hover:ring-charcoal-50/40 ring-1",
-                              !group.base && "opacity-70",
-                            ]
-                              .filter(Boolean)
-                              .join(" ")}
-                            title={
-                              group.base
-                                ? group.baseSkinName
-                                : `${group.baseSkinName} (base not downloaded)`
-                            }
-                          >
-                            <SkinThumb championName={champion} skinName={group.baseSkinName} />
-
-                            {baseSelected && (
-                              <div className="bg-gold-400 absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full border border-white/30 shadow-sm">
-                                <Check size={11} strokeWidth={3} className="text-charcoal-600" />
-                              </div>
-                            )}
-                            {selectedChroma && (
-                              <div
-                                className="absolute top-1 right-1 h-5 w-5 rounded-full border-2 border-white shadow-sm"
-                                style={{
-                                  background: selectedChroma.colors[1]
-                                    ? `linear-gradient(135deg, ${selectedChroma.colors[0]} 0% 50%, ${selectedChroma.colors[1]} 50% 100%)`
-                                    : (selectedChroma.colors[0] ?? "var(--color-gold-400)"),
-                                }}
-                                title={`Chroma: ${selectedChroma.dl.skin_name}`}
-                              />
-                            )}
-
-                            <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/40 to-transparent px-1.5 pt-4 pb-1">
-                              <p className="line-clamp-2 text-[10px] leading-tight text-white/90">
-                                {group.baseSkinName}
-                              </p>
-                            </div>
-                          </button>
-
-                          <button
-                            className={`star-button library-favorite ${isFavorite(champion, group.baseSkinName) ? "starred" : ""}`}
-                            aria-label={`${isFavorite(champion, group.baseSkinName) ? "Unfavorite" : "Favorite"} ${group.baseSkinName}`}
-                            aria-pressed={isFavorite(champion, group.baseSkinName)}
-                            onClick={() => onFavorite(champion, group.baseSkinName)}
-                          >
-                            <Star
-                              size={12}
-                              fill={
-                                isFavorite(champion, group.baseSkinName) ? "currentColor" : "none"
-                              }
-                            />
-                          </button>
-                          {!patcherActive && group.base && (
-                            <button
-                              onClick={() => {
-                                const names: string[] = [];
-                                if (group.base) names.push(group.base.skin_name);
-                                for (const c of group.chromas) names.push(c.dl.skin_name);
-                                handleDeleteGroup(champion, names);
-                              }}
-                              className="bg-charcoal-500 hover:bg-error text-ink-muted absolute top-1 left-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full shadow transition-colors hover:text-white"
-                              title={
-                                group.chromas.length > 0
-                                  ? `Delete skin and ${group.chromas.length} chroma${group.chromas.length === 1 ? "" : "s"}`
-                                  : "Delete skin"
-                              }
-                            >
-                              <X size={10} strokeWidth={2.5} />
-                            </button>
-                          )}
-                        </div>
-
-                        {group.chromas.length > 0 && (
-                          <div className="library-chromas mt-1 flex w-32 flex-wrap items-center gap-1">
-                            {group.chromas.map((c) => {
-                              const isSel = selectedSkin === c.dl.skin_name;
-                              const bg = c.colors[1]
-                                ? `linear-gradient(135deg, ${c.colors[0]} 0% 50%, ${c.colors[1]} 50% 100%)`
-                                : (c.colors[0] ?? undefined);
-                              return (
-                                <button
-                                  key={c.dl.skin_name}
-                                  onClick={() => toggleSkin(c.dl.champion_name, c.dl.skin_name)}
-                                  onContextMenu={(e) => {
-                                    e.preventDefault();
-                                    handleDelete(c.dl.champion_name, c.dl.skin_name);
-                                  }}
-                                  disabled={patcherActive}
-                                  title={`${c.dl.skin_name}\n(right-click to delete)`}
-                                  className={[
-                                    "ring-offset-charcoal-400 relative h-4 w-4 shrink-0 rounded-sm transition-all",
-                                    patcherActive ? "cursor-default opacity-50" : "cursor-pointer",
-                                    isSel
-                                      ? "ring-gold-400 ring-2 ring-offset-1"
-                                      : "ring-charcoal-50/30 hover:ring-charcoal-50/60 ring-1",
-                                  ].join(" ")}
-                                  style={{
-                                    background: bg ?? "var(--color-charcoal-300, #3a3a3a)",
-                                  }}
-                                >
-                                  {isSel && (
-                                    <Check
-                                      size={9}
-                                      strokeWidth={3}
-                                      className="absolute inset-0 m-auto text-white drop-shadow"
-                                    />
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <div className="library-decks-scroll">
+        {!decks.length ? (
+          <div className="minimal-empty">
+            <Layers size={30} />
+            <h2>No downloaded skins</h2>
+          </div>
+        ) : !filtered.length ? (
+          <div className="minimal-empty">
+            <Search size={26} />
+            <h2>No matches</h2>
+          </div>
+        ) : (
+          <div className="library-decks-grid">
+            {filtered.map((deck) => (
+              <ChampionSkinDeck
+                key={deck.champion}
+                deck={deck}
+                selected={selection[deck.champion]}
+                disabled={patcherActive}
+                isFavorite={(name) => isFavorite(deck.champion, name)}
+                onFavorite={(name) => onFavorite(deck.champion, name)}
+                onChoose={(name, enabled) => choose(deck.champion, name, enabled)}
+                onDelete={(items) => remove(deck.champion, items)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

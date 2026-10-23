@@ -15,6 +15,7 @@ import {
 import { useSkinData, skinDownloadUrl, getSplashNum } from "../hooks/useSkinData";
 import { splashUrl, championAvatar } from "../hooks/useChampions";
 import { galleryIndex } from "../lib/selection";
+import { downloadChoice } from "../lib/downloadChoice";
 import { galleryTarget } from "../lib/championSearch";
 import SystemIcon from "./SystemIcon";
 import SkinRarityBadge from "./SkinRarityBadge";
@@ -96,7 +97,8 @@ export default function ChampionDetail({
   );
   const [index, setIndex] = useState(0);
   const [chromaId, setChromaId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<"only" | "select" | null>(null);
+  const downloadInFlight = useRef(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const selectedThumb = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
@@ -106,7 +108,7 @@ export default function ChampionDetail({
   const downloaded = skin ? isDownloaded(skin.championName, skin.name) : false;
   const selected = !!skin && selection[skin.championName] === skin.name;
   const downloadUrl = skin ? skinDownloadUrl(skin) : null;
-  const busy = downloading !== null || saving;
+  const busy = downloading !== null || saving !== null;
   const artworkSource = skin
     ? splashUrl(skin.championId, getSplashNum(skin))
     : splashUrl(champion.id, 0);
@@ -175,18 +177,19 @@ export default function ChampionDetail({
     });
   }, [index]);
 
-  async function downloadCurrent() {
-    if (!skin || !downloadUrl || busy) return;
+  async function downloadCurrent(selectAfter: boolean) {
+    if (!skin || !downloadUrl || busy || downloadInFlight.current) return;
+    downloadInFlight.current = true;
     const requestedSkin = skin;
-    setSaving(true);
+    setSaving(selectAfter ? "select" : "only");
     setActionError(null);
     try {
-      const success = await onDownload(downloadUrl, requestedSkin.championName, requestedSkin.name);
-      if (success) onSelectSkin(requestedSkin, true);
+      await downloadChoice(requestedSkin, downloadUrl, selectAfter, onDownload, onSelectSkin);
     } catch (e) {
       if (mounted.current) setActionError(String(e));
     } finally {
-      if (mounted.current) setSaving(false);
+      downloadInFlight.current = false;
+      if (mounted.current) setSaving(null);
     }
   }
 
@@ -348,18 +351,32 @@ export default function ChampionDetail({
                   {selected ? "Selected" : "Use this skin"}
                 </button>
               ) : (
-                <button
-                  className="primary-button"
-                  disabled={busy || !downloadUrl}
-                  onClick={downloadCurrent}
-                >
-                  {busy ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
-                    <SystemIcon name="download" fallback={Download} size={15} />
-                  )}{" "}
-                  {saving ? "Downloading…" : busy ? "Download in progress…" : "Download & select"}
-                </button>
+                <div className="gallery-download-options">
+                  <button
+                    className="gallery-download-only quiet-button"
+                    disabled={busy || !downloadUrl}
+                    onClick={() => void downloadCurrent(false)}
+                  >
+                    {saving === "only" ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <SystemIcon name="download" fallback={Download} size={14} />
+                    )}
+                    {saving === "only" ? "Downloading…" : "Download only"}
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={busy || !downloadUrl}
+                    onClick={() => void downloadCurrent(true)}
+                  >
+                    {saving === "select" ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <SystemIcon name="download" fallback={Download} size={15} />
+                    )}{" "}
+                    {saving === "select" ? "Downloading…" : "Download & select"}
+                  </button>
+                </div>
               )}
               {actionError && (
                 <p role="alert" className="text-error text-xs">

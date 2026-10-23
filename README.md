@@ -21,8 +21,9 @@ A personal macOS skin manager with a native glass interface, built on [Zushi](ht
 - **New Releases** automatically lists skins added in the current Riot patch and opens them directly in the gallery.
 - Champion browsing with alphabetical sections, an A–Z jump bar, release-date sorting, favorites, and search for champion or skin names.
 - Large skin previews, arrow-key navigation, thumbnail filmstrip, chromas, and colored rarity badges from client metadata.
+- Compact three-column Library with one champion card deck per tile. The selected skin stays on top; click an offset card, use the arrow controls, or press Left/Right to cycle and select downloaded skins. Chromas remain compact swatches under each deck. Favorites, search, and confirmed removal remain available.
 - Portrait loading-screen artwork in Library and Enabled Skins.
-- Download and select skins directly from the gallery, or import custom packages with automatic champion detection and an import review.
+- **Download only** saves a skin without changing the selection, above the existing **Download & select** gallery action. Download and select skins directly from the gallery, or import custom packages with automatic champion detection and an import review.
 - One enabled look per champion across regular and custom skins, preserving other champions when replacing a look.
 - Resizable sidebar down to an icon rail, colored SF Symbols, and a full searchable Enabled Skins view.
 - Untinted native Liquid Glass sidebar on macOS 26+, with sidebar vibrancy on earlier systems; native title bar and refined glass controls.
@@ -88,9 +89,9 @@ The script checks source and bundled application versions, runs the test suites 
 
 ## Validation
 
-v0.1.21 passed TypeScript/Vite production compilation, native Rust compilation, 50 frontend tests, 13 Rust tests, and code-signature checks. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
+v0.1.22 passed TypeScript/Vite production compilation, native Rust compilation, 57 frontend tests, 13 Rust tests, and code-signature checks. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
 
-The patcher binary is unchanged from the user-confirmed working release. Its Mach-O import fix previously passed 6 native regression cases and an offline check against the installed game. New coverage includes category coexistence, real archive imports, duplicate import names, legacy metadata migration, loadout restore, local lock-in/trades/rerolls, sidebar preferences, and tab accents. The latest interface was checked through compilation and automated tests; live window interactions and a live champion-select session were not manually verified.
+The patcher binary is unchanged from the user-confirmed working release. Its Mach-O import fix previously passed 6 native regression cases and an offline check against the installed game. New coverage includes category coexistence, real archive imports, duplicate import names, legacy metadata migration, loadout restore, local lock-in/trades/rerolls, sidebar preferences, tab accents, library deck grouping/selection/chroma handling, and download-only selection isolation. The latest interface was checked through compilation and automated tests; live window interactions and a live champion-select session were not manually verified.
 
 See [ASSETS.md](ASSETS.md) for Apple interface assets and Riot metadata sources.
 

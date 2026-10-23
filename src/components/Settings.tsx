@@ -4,8 +4,13 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Power, FolderOpen, Trash2, Loader2, HardDrive } from "lucide-react";
 import { getPatcherLog, getSkinsDirSize, getWorkDirSize, getCustomsDirSize, clearAllSkins, clearWorkDir, clearAllCustoms } from "../lib/commands";
 import Toast from "./Toast";
+import AppUpdateCard from "./AppUpdateCard";
+import type { AppUpdates } from "../hooks/useAppUpdates";
 
 interface SettingsProps {
+  updates: AppUpdates;
+  native: boolean;
+  updateBlockedReason: string | null;
   theme: string;
   onThemeChange: (theme: string) => void;
   accent: string;
@@ -25,6 +30,7 @@ function formatSize(bytes: number): string {
 }
 
 export default function Settings({
+  updates, native, updateBlockedReason,
   theme, onThemeChange, accent, onAccentChange,
   gamePath,
   onPathChange,
@@ -145,6 +151,7 @@ export default function Settings({
         <div className="accent-options">{[{id:"lavender",label:"Lavender",color:"#a3b4fa"},{id:"ocean",label:"Ocean",color:"#6bbbf1"},{id:"mint",label:"Mint",color:"#83d7b5"},{id:"rose",label:"Rose",color:"#eea8c9"},{id:"amber",label:"Amber",color:"#e6c183"},{id:"graphite",label:"Graphite",color:"#b6becb"}].map(option => <button key={option.id} className={accent === option.id ? "chosen" : ""} aria-pressed={accent === option.id} onClick={() => onAccentChange(option.id)}><i style={{background:option.color}}/>{option.label}</button>)}</div>
         
       </section>
+      <AppUpdateCard updates={updates} native={native} blockedReason={updateBlockedReason}/>
       {/* General */}
       <div className="pb-2">
         <span className="text-ink-muted text-[11px] font-medium tracking-wider uppercase select-none">

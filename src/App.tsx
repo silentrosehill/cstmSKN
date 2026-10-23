@@ -17,6 +17,8 @@ import NewReleases from "./components/NewReleases";
 import MySkins from "./components/MySkins";
 import Customs from "./components/Customs";
 import Settings from "./components/Settings";
+import AppUpdateDialog from "./components/AppUpdateDialog";
+import { useAppUpdates } from "./hooks/useAppUpdates";
 import EnabledSkins from "./components/EnabledSkins";
 import Toast from "./components/Toast";
 import { chooseSkin, chooseCustom, customTargets, loadoutPaths, type Loadout, type ChampionAssignments } from "./lib/selection";
@@ -44,6 +46,9 @@ export default function App() {
   const customs = useCustoms();
   const { champions } = useChampions();
   const native = isTauri();
+  const [importing, setImporting] = useState(false);
+  const updateBlockedReason = patcher.isActive ? "Stop the patcher before updating." : dl.downloading ? "Finish the skin download before updating." : importing ? "Finish importing the custom skin before updating." : null;
+  const updates = useAppUpdates(updateBlockedReason);
   const sidebar = useSidebar();
   const sidebarElement = useRef<HTMLElement>(null);
   useNativeSidebarGlass(sidebarElement, native);
@@ -96,11 +101,13 @@ export default function App() {
     catch (e) { setToastMessage(String(e)); }
   }
   async function addCustom(path: string) {
+    setImporting(true);
+    try {
     const roster = await ensureChampions().catch(() => champions);
     const mod = await customs.addCustom(path);
     const mods = [...modsRef.current.filter(c => c.name !== mod.name), mod]; modsRef.current = mods;
     if (customTargets(mod, roster, assignmentsRef.current).length) commitLoadout(chooseCustom(loadoutRef.current, mod, true, mods, roster, assignmentsRef.current), mods);
-    
+    } finally { setImporting(false); }
   }
   function assignCustom(name: string, champion: string) {
     const nextAssignments = { ...assignmentsRef.current, [name]:champion };
@@ -124,7 +131,7 @@ export default function App() {
   function content() {
     if (view === "whats-new") return <NewReleases onSelect={(champion,skin)=>openChampion(champion,skin.id,skin,"whats-new")} isDownloaded={dl.isDownloaded}/>;
     if (view === "enabled") return <EnabledSkins downloads={selectedDownloads} customs={enabledMods} champions={champions} assignments={assignments} onDisableSkin={disableSkin} onDisableCustom={name => { const mod=modsRef.current.find(c=>c.name===name); if(mod)toggleCustom(mod); }} onClear={()=>commitLoadout({skins:{},customs:[]})} onOpenChampion={champion=>openChampion(champion)} onOpenCustoms={()=>handleNav("customs")}/>;
-    if (view === "settings") return <div className="flex-1 overflow-y-auto"><Settings theme={theme} onThemeChange={setTheme} accent={accent} onAccentChange={setAccent} gamePath={gamePath} onPathChange={selectPath} patcherActive={patcher.isActive} onSkinsCleared={async () => { commitLoadout({ ...loadoutRef.current,skins:{} }); await dl.refresh(); }} onCustomsCleared={async () => { commitLoadout({ ...loadoutRef.current,customs:[] }); await customs.refresh(); }}/></div>;
+    if (view === "settings") return <div className="flex-1 overflow-y-auto"><Settings updates={updates} native={native} updateBlockedReason={updateBlockedReason} theme={theme} onThemeChange={setTheme} accent={accent} onAccentChange={setAccent} gamePath={gamePath} onPathChange={selectPath} patcherActive={patcher.isActive} onSkinsCleared={async () => { commitLoadout({ ...loadoutRef.current,skins:{} }); await dl.refresh(); }} onCustomsCleared={async () => { commitLoadout({ ...loadoutRef.current,customs:[] }); await customs.refresh(); }}/></div>;
     if (view === "customs") return <Customs customs={customMods} onAdd={addCustom} onRemove={removeCustom} onToggle={name => { const mod = modsRef.current.find(c => c.name === name); if (mod) toggleCustom(mod); }} champions={champions} assignments={assignments} onAssign={assignCustom}/>;
     if (view === "my-skins") return <MySkins downloads={dl.downloads} patcherActive={false} selection={loadout.skins} onSelectionChange={nextSkins => {
       let next = { ...loadoutRef.current, skins:nextSkins };
@@ -140,7 +147,7 @@ export default function App() {
   }
 
   return <div className={`glass-app ${native ? "native" : ""} ${sidebar.collapsed ? "sidebar-collapsed" : ""} ${sidebar.resizing ? "sidebar-resizing" : ""}`} style={{"--sidebar-width":`${sidebar.width}px`} as CSSProperties}>
-    <aside className="glass-sidebar" ref={sidebarElement}>
+    <aside className="glass-sidebar" ref={sidebarElement} inert={updates.blocking}>
       <div className="brand"><img className="brand-app-icon" src={brandIcon} alt="cstmSKN icon"/><div className="brand-wordmark"><strong className="cstm-wordmark">cstm<span>SKN</span></strong></div><button className="sidebar-toggle" onClick={sidebar.toggle} aria-label={sidebar.collapsed ? "Expand sidebar" : "Collapse sidebar"} title={sidebar.collapsed ? "Expand sidebar" : "Collapse sidebar"}><SystemIcon name="sidebar" fallback={PanelLeft} size={18}/></button></div>
       <nav aria-label="Main navigation">{NAV_ITEMS.map(({id,label,icon:Icon,symbol}) => <button key={id} title={label} aria-label={label} aria-current={view === id ? "page" : undefined} onClick={() => handleNav(id)} data-view={id} className={`nav-item ${view === id ? "active" : ""}`}><span className="nav-symbol"><SystemIcon name={symbol} fallback={Icon} size={19}/></span><span className="nav-label">{label}</span>{id === "my-skins" && dl.downloads.length > 0 && <em>{dl.downloads.length}</em>}{id === "customs" && customs.customs.length > 0 && <em>{customs.customs.length}</em>}{id === "enabled" && selectionCount>0 && <em>{selectionCount}</em>}</button>)}</nav>
       <section className="enabled-section" aria-label="Enabled skins"><button className="enabled-heading" onClick={()=>handleNav("enabled")} aria-label="Expand enabled skins" title="Open enabled skins"><SystemIcon name="enabled" fallback={CircleCheck} size={18} className="enabled-heading-icon"/><span className="enabled-title">Enabled</span><em>{selectionCount}</em><SystemIcon name="expand" fallback={Maximize2} size={12} className="enabled-expand-icon"/></button>
@@ -153,10 +160,11 @@ export default function App() {
       <div className="sidebar-bottom"><div className="profile"><div className="profile-avatar">s</div><strong>silentrosehill</strong><button className="theme-button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} appearance`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <SystemIcon name="sun" fallback={Sun} size={18}/> : <SystemIcon name="moon" fallback={Moon} size={18}/>}</button></div></div>
       <div className="sidebar-resizer" {...sidebar.separator}/>
     </aside>
-    <div className="workspace">
+    <div className="workspace" inert={updates.blocking}>
       {view!=="champions" && view!=="whats-new" && <div className="view-heading"><h1>{NAV_ITEMS.find(n=>n.id===view)?.label}</h1></div>}
       <main className="flex flex-1 flex-col overflow-hidden"><div className="content-stage" key={`${view}-${selectedChampion?.id ?? "index"}`}>{content()}</div></main><DownloadBar downloading={dl.downloading}/><StatusBar patcherStatus={patcher.status} skinCount={selectedDownloads.length} customCount={enabledMods.length} onApply={applySelection} onStop={patcher.stop}/>
     </div>
+    {updates.blocking && <AppUpdateDialog updates={updates}/>}
     {(toastMessage || dl.error) && <Toast key={toastMessage ?? dl.error ?? ""} message={toastMessage ?? dl.error ?? ""} onClose={() => { setToastMessage(null); dl.clearError(); customs.clearError(); }}/>}
     {native && status !== "game-detected" && <div className="bg-charcoal-400 absolute inset-0 z-50"><GamePathSelector onConfirm={confirmSetup} onSelect={selectPath} onCheck={checkPath} detectedPath={detectedPath} status={status}/></div>}
   </div>;

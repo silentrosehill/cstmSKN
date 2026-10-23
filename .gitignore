@@ -10,3 +10,8 @@ mod-tools/target/
 .env.*
 !.env.example
 *.log
+
+release/
+*.key
+*.key.password
+.update-signing/

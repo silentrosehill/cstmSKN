@@ -17,6 +17,8 @@
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
     "core:window:allow-show",
-    "core:window:allow-set-theme"
+    "core:window:allow-set-theme",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

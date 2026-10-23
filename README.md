@@ -8,6 +8,7 @@ A personal macOS skin manager with a native glass interface, built on [Zushi](ht
 
 ## Features
 
+- **Software Update** in Settings checks GitHub for signed updates and installs them with Update & Restart.
 - **New Releases** automatically lists skins added in the current Riot patch and opens them directly in the gallery.
 - Champion browsing with alphabetical sections, an A–Z jump bar, release-date sorting, favorites, and search for champion or skin names.
 - Large skin previews, arrow-key navigation, thumbnail filmstrip, chromas, and colored rarity badges from client metadata.
@@ -38,6 +39,10 @@ Changing an enabled look while the patcher is running rebuilds its selection. Th
 
 The sidebar’s expand control and **Enabled skins** section open the complete selection. Drag its edge to resize it, or collapse it to icons. **New Releases** checks Riot’s patch data when opened and periodically while visible. The neutral sidebar keeps its appearance as the selected splash changes the main content colors. Settings includes themes, storage controls, and a diagnostics disclosure with the local patcher log.
 
+## Updates
+
+Open **Settings → Software Update → Check for Updates**. Available updates are downloaded and verified against the embedded public key, including their signed app version, before installation and restart. The release feed is public and requires no GitHub token. Installation is blocked while patching, downloading a skin, or importing a custom mod. Library data and preferences are preserved outside the app bundle.
+
 ## Build
 
 Requires macOS developer tools, Node.js 22.18 or newer, Rust, and CMake. For Apple Silicon:
@@ -50,7 +55,7 @@ mkdir -p src-tauri/binaries
 cp mod-tools/build/mod-tools src-tauri/binaries/mod-tools-aarch64-apple-darwin
 npm test
 cargo test --manifest-path src-tauri/Cargo.toml --lib
-npm run tauri build -- --bundles app
+npm run tauri build -- --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}'
 ```
 
 `npm run dev` starts a browser preview; native downloads, imports, and patching require the desktop app.
@@ -62,9 +67,19 @@ clang++ -std=c++20 mod-tools/tests/macho_imports.cpp -o /tmp/cstmskn-macho-tests
 /tmp/cstmskn-macho-tests
 ```
 
+## Publish a signed update
+
+Keep the original signing key outside the repository. The public verification key is in `src-tauri/tauri.conf.json`; the app requires signatures bound to the announced app version.
+
+```sh
+npm run release:mac -- --key /protected/path/cstmSKN.key --output release
+```
+
+The script runs the test suites and build, signs the final app bundle, packages the updater archive, and generates its signature and `latest.json`. A sibling `.password` file or `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` supplies a protected key's password. Publish the generated archive, signature, and `latest.json` together on the latest stable GitHub release. GitHub's latest-release endpoint is the configured update feed. Never commit or upload the private key or password.
+
 ## Validation
 
-v0.1.17 passed TypeScript/Vite production compilation, native Rust compilation, 29 frontend tests, 7 Rust tests, and code-signature checks. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
+v0.1.18 passed TypeScript/Vite production compilation, native Rust compilation, 38 frontend tests, 7 Rust tests, and code-signature checks. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
 
 The patcher binary is unchanged from the user-confirmed working release. Its Mach-O import fix previously passed 6 native regression cases and an offline check against the installed game. The latest interface was checked through compilation and automated tests; live window interactions were not manually verified.
 

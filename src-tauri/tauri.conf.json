@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "cstmSKN",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "identifier": "com.silentrosehill.cstmskn",
   "build": {
     "frontendDist": "../dist",
@@ -57,11 +57,19 @@
     ],
     "macOS": {
       "minimumSystemVersion": "10.15"
-    }
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "shell": {
       "open": true
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU2REI0NzQ1RjFCMzU3MEMKUldRTVY3UHhSVWZiNXBFV1RFOWdHeUJUT3NxVExRcjdxSll0UjNwRUxkZ1JWRlNpY3FBM08wcnkK",
+      "endpoints": [
+        "https://github.com/silentrosehill/cstmSKN/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
     }
   }
 }

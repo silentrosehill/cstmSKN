@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 import { parseArgs } from "node:util";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { values } = parseArgs({
@@ -48,6 +49,9 @@ if (password === undefined) {
 const env = {
   ...process.env,
   CARGO_TARGET_DIR: target,
+  RUSTFLAGS: `${process.env.RUSTFLAGS ?? ""} --remap-path-prefix=${homedir()}=/build`,
+  CFLAGS: `${process.env.CFLAGS ?? ""} -ffile-prefix-map=${homedir()}=/build`,
+  CXXFLAGS: `${process.env.CXXFLAGS ?? ""} -ffile-prefix-map=${homedir()}=/build`,
   TAURI_SIGNING_PRIVATE_KEY: secret,
   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: password,
   COPYFILE_DISABLE: "1",

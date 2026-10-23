@@ -25,6 +25,10 @@ function loadPalette(src: string): Promise<ImagePalette> {
       image.src = src;
     });
     palettes.set(src, cached);
+    if (palettes.size > 80) palettes.delete(palettes.keys().next().value!);
+    void cached.catch(() => {
+      if (palettes.get(src) === cached) palettes.delete(src);
+    });
   }
   return cached;
 }

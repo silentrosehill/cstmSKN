@@ -1,3 +1,5 @@
+import { setItem, readStored } from "../lib/storage";
+export { readStored } from "../lib/storage";
 import { useCallback, useState } from "react";
 import {
   sanitizeFavorites,
@@ -7,13 +9,6 @@ import {
 } from "../lib/collections";
 import type { Skin } from "../types";
 
-export function readStored<T>(key: string, fallback: T): T {
-  try {
-    return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
 export function useFavorites() {
   const [favorites, setFavorites] = useState<Favorites>(() =>
     sanitizeFavorites(readStored("cstm:favorites", {}))
@@ -22,7 +17,7 @@ export function useFavorites() {
     (fn: (value: Favorites) => Favorites) =>
       setFavorites((value) => {
         const next = fn(value);
-        localStorage.setItem("cstm:favorites", JSON.stringify(next));
+        setItem("cstm:favorites", JSON.stringify(next));
         return next;
       }),
     []
@@ -68,7 +63,7 @@ export function useSavedLoadouts() {
     (fn: (value: SavedLoadout[]) => SavedLoadout[]) =>
       setSaved((value) => {
         const next = fn(value);
-        localStorage.setItem("cstm:saved-loadouts", JSON.stringify(next));
+        setItem("cstm:saved-loadouts", JSON.stringify(next));
         return next;
       }),
     []

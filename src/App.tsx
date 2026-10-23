@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { getItem, setItem, readStored, stringRecord } from "./lib/storage";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { isTauri } from "@tauri-apps/api/core";
 import {
@@ -18,6 +19,7 @@ import {
   Star,
   SlidersHorizontal,
   Upload,
+  History,
 } from "lucide-react";
 import { useGamePath } from "./hooks/useGamePath";
 import { usePatcher } from "./hooks/usePatcher";
@@ -35,25 +37,26 @@ import StatusBar from "./components/StatusBar";
 import DownloadBar from "./components/DownloadBar";
 import GamePathSelector from "./components/GamePathSelector";
 import ChampionGrid from "./components/ChampionGrid";
-import ChampionDetail from "./components/ChampionDetail";
+const ChampionDetail = lazy(() => import("./components/ChampionDetail"));
+const Changelog = lazy(() => import("./components/Changelog"));
 import NewReleases from "./components/NewReleases";
-import MySkins from "./components/MySkins";
+const MySkins = lazy(() => import("./components/MySkins"));
 import Customs from "./components/Customs";
-import Favorites from "./components/Favorites";
-import Loadouts from "./components/Loadouts";
+const Favorites = lazy(() => import("./components/Favorites"));
+const Loadouts = lazy(() => import("./components/Loadouts"));
 import ImportReview from "./components/ImportReview";
 import { useFavorites, useSavedLoadouts } from "./hooks/useCollections";
-import { restoreLoadout, type SavedLoadout } from "./lib/collections";
+import { restoreLoadout, sanitizeLoadout, type SavedLoadout } from "./lib/collections";
 import { modKind, modLabel, supportedModPath } from "./lib/mods";
 import { useChampSelect } from "./hooks/useChampSelect";
 import { usePatcherHealth } from "./hooks/usePatcherHealth";
 import { sanitizeNavigation, moveTab, toggleTab } from "./lib/navigation";
 import type { TabId, NavigationPreferences } from "./lib/navigation";
 import { tabAccent } from "./lib/tabAccent";
-import Settings from "./components/Settings";
+const Settings = lazy(() => import("./components/Settings"));
 import AppUpdateDialog from "./components/AppUpdateDialog";
 import { useAppUpdates } from "./hooks/useAppUpdates";
-import EnabledSkins from "./components/EnabledSkins";
+const EnabledSkins = lazy(() => import("./components/EnabledSkins"));
 import Toast from "./components/Toast";
 import {
   chooseSkin,
@@ -81,15 +84,9 @@ const NAV_ITEMS: { id: View; label: string; icon: typeof Swords; symbol: string 
   { id: "game-mods", label: "Game Mods", icon: SlidersHorizontal, symbol: "mods" },
   { id: "customs", label: "Custom skins", icon: Package, symbol: "custom" },
   { id: "enabled", label: "Enabled", icon: CircleCheck, symbol: "enabled" },
+  { id: "changelog", label: "Changelog", icon: History, symbol: "history" },
   { id: "settings", label: "Settings", icon: SettingsIcon, symbol: "settings" },
 ];
-function stored<T>(key: string, fallback: T): T {
-  try {
-    return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 export default function App() {
   const { gamePath, detectedPath, status, selectPath, confirmSetup, checkPath } = useGamePath();
@@ -105,16 +102,18 @@ export default function App() {
   const [reviewNames, setReviewNames] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
   const [gameImportKind, setGameImportKind] = useState<ModKind>("other");
-  const [followClient, setFollowClient] = useState(() => stored("cstm:follow-client", true));
+  const [followClient, setFollowClient] = useState(
+    () => readStored("cstm:follow-client", true) === true
+  );
   const [navigation, setNavigation] = useState<NavigationPreferences>(() =>
-    sanitizeNavigation(stored("cstm:navigation", {}))
+    sanitizeNavigation(readStored("cstm:navigation", {}))
   );
   const visibleNav = navigation.order.flatMap((id) => {
     const item = NAV_ITEMS.find((item) => item.id === id);
     return item && !navigation.hidden.includes(id) ? [item] : [];
   });
   useEffect(() => {
-    localStorage.setItem("cstm:navigation", JSON.stringify(navigation));
+    setItem("cstm:navigation", JSON.stringify(navigation));
   }, [navigation]);
   const favorites = useFavorites();
   const savedLoadouts = useSavedLoadouts();
@@ -130,11 +129,9 @@ export default function App() {
   const sidebarElement = useRef<HTMLElement>(null);
   useNativeSidebarGlass(sidebarElement, native);
   const [artwork, setArtwork] = useState<string | null>(null);
-  const [theme, setTheme] = useState(() => localStorage.getItem("glass:theme") ?? "dark");
-  const [accent, setAccent] = useState(() => localStorage.getItem("glass:accent") ?? "lavender");
-  const [accentMode, setAccentMode] = useState(
-    () => localStorage.getItem("glass:accent-mode") ?? "tab"
-  );
+  const [theme, setTheme] = useState(() => getItem("glass:theme") ?? "dark");
+  const [accent, setAccent] = useState(() => getItem("glass:accent") ?? "lavender");
+  const [accentMode, setAccentMode] = useState(() => getItem("glass:accent-mode") ?? "tab");
   useArtworkTheme(artwork, theme);
   const [view, setView] = useState<View>(() =>
     navigation.hidden.includes("champions")
@@ -151,13 +148,15 @@ export default function App() {
   const [catalogSearch, setCatalogSearch] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<ChampionAssignments>(() =>
-    stored("cstm:mod-champions", {})
+    stringRecord(readStored("cstm:mod-champions", {}))
   );
   const [loadout, setLoadout] = useState<Loadout>(() =>
-    stored("cstm:loadout", {
-      skins: stored("zushi_skin_selection", {}),
-      customs: stored("zushi_customs_enabled", []),
-    })
+    sanitizeLoadout(
+      readStored("cstm:loadout", {
+        skins: readStored("zushi_skin_selection", {}),
+        customs: readStored("zushi_customs_enabled", []),
+      })
+    )
   );
   const loadoutRef = useRef(loadout);
   const modsRef = useRef(customs.customs);
@@ -196,7 +195,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("glass:theme", theme);
+    setItem("glass:theme", theme);
     if (native)
       void getCurrentWebviewWindow()
         .setTheme(theme === "light" ? "light" : "dark")
@@ -206,10 +205,10 @@ export default function App() {
     document.documentElement.dataset.accent = effectiveAccent;
   }, [effectiveAccent]);
   useEffect(() => {
-    localStorage.setItem("glass:accent", accent);
+    setItem("glass:accent", accent);
   }, [accent]);
   useEffect(() => {
-    localStorage.setItem("glass:accent-mode", accentMode);
+    setItem("glass:accent-mode", accentMode);
   }, [accentMode]);
   useEffect(() => {
     if (native)
@@ -233,7 +232,7 @@ export default function App() {
   const commitLoadout = useCallback((next: Loadout, mods = modsRef.current) => {
     loadoutRef.current = next;
     setLoadout(next);
-    localStorage.setItem("cstm:loadout", JSON.stringify(next));
+    setItem("cstm:loadout", JSON.stringify(next));
     if (patcherRef.current.isActive) {
       const paths = loadoutPaths(next, downloadsRef.current, mods);
       if (paths.length) void patcherRef.current.apply(paths);
@@ -329,7 +328,7 @@ export default function App() {
     const nextAssignments = { ...assignmentsRef.current, [name]: champion };
     assignmentsRef.current = nextAssignments;
     setAssignments(nextAssignments);
-    localStorage.setItem("cstm:mod-champions", JSON.stringify(nextAssignments));
+    setItem("cstm:mod-champions", JSON.stringify(nextAssignments));
     const mod = modsRef.current.find((c) => c.name === name);
     if (mod && loadoutRef.current.customs.includes(name)) {
       const disabled = chooseCustom(
@@ -467,6 +466,7 @@ export default function App() {
           onOpenCustoms={(mod) => handleNav(modKind(mod) === "skin" ? "customs" : "game-mods")}
         />
       );
+    if (view === "changelog") return <Changelog />;
     if (view === "settings")
       return (
         <div className="flex-1 overflow-y-auto">
@@ -485,7 +485,7 @@ export default function App() {
             clientStatus={clientStatus}
             onFollowClientChange={(enabled) => {
               setFollowClient(enabled);
-              localStorage.setItem("cstm:follow-client", JSON.stringify(enabled));
+              setItem("cstm:follow-client", JSON.stringify(enabled));
             }}
             updates={updates}
             native={native}
@@ -801,8 +801,8 @@ export default function App() {
         )}
         <div className="sidebar-bottom">
           <div className="profile">
-            <div className="profile-avatar">s</div>
-            <strong>silentrosehill</strong>
+            <div className="profile-avatar">c</div>
+            <strong>cstmSKN</strong>
             <button
               className="theme-button"
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} appearance`}
@@ -826,7 +826,15 @@ export default function App() {
         )}
         <main className="flex flex-1 flex-col overflow-hidden">
           <div className="content-stage" key={`${view}-${selectedChampion?.id ?? "index"}`}>
-            {content()}
+            <Suspense
+              fallback={
+                <div className="text-ink-muted p-6 text-sm" role="status">
+                  Loading…
+                </div>
+              }
+            >
+              {content()}
+            </Suspense>
           </div>
         </main>
         <DownloadBar downloading={dl.downloading} />
@@ -835,6 +843,7 @@ export default function App() {
           native={native}
           onHealth={() => handleNav("settings")}
           patcherStatus={patcher.status}
+          patcherActive={patcher.isActive}
           skinCount={selectedDownloads.length}
           customCount={enabledMods.length}
           onApply={applySelection}

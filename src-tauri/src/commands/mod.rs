@@ -11,6 +11,10 @@ use std::process::Command;
 /// Open a URL in the real (GUI) user's default browser, not root's.
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
+    // This command opens web links only, never local files or URL handlers.
+    if !url.starts_with("https://") || url.chars().any(char::is_control) {
+        return Err("Only secure web links can be opened".into());
+    }
     // stat -f '%Su' /dev/console gives the user who owns the GUI session.
     let real_user = Command::new("stat")
         .args(["-f", "%Su", "/dev/console"])
@@ -22,12 +26,12 @@ pub fn open_url(url: String) -> Result<(), String> {
 
     if !real_user.is_empty() && real_user != "root" {
         Command::new("sudo")
-            .args(["-u", &real_user, "open", &url])
+            .args(["-u", &real_user, "/usr/bin/open", "--", &url])
             .spawn()
             .map_err(|e| e.to_string())?;
     } else {
-        Command::new("open")
-            .arg(&url)
+        Command::new("/usr/bin/open")
+            .args(["--", &url])
             .spawn()
             .map_err(|e| e.to_string())?;
     }

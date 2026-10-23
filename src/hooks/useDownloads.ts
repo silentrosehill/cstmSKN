@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -29,6 +29,7 @@ export function useDownloads() {
   const [error, setError] = useState<string | null>(null);
   const [cacheSize, setCacheSize] = useState(0);
   const busy = useRef(false);
+  const refreshGeneration = useRef(0);
 
   const refreshSize = useCallback(async () => {
     try {
@@ -40,9 +41,10 @@ export function useDownloads() {
   }, []);
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current;
     try {
       const list = await listDownloadedSkins();
-      setDownloads(list);
+      if (generation === refreshGeneration.current) setDownloads(list);
     } catch {}
     await refreshSize();
   }, [refreshSize]);
@@ -51,11 +53,15 @@ export function useDownloads() {
     refresh();
   }, [refresh]);
 
+  const downloadedKeys = useMemo(
+    () => new Set(downloads.map((d) => JSON.stringify([d.champion_name, d.skin_name]))),
+    [downloads]
+  );
   const isDownloaded = useCallback(
     (championName: string, skinName: string): boolean => {
-      return downloads.some((d) => d.champion_name === championName && d.skin_name === skinName);
+      return downloadedKeys.has(JSON.stringify([championName, skinName]));
     },
-    [downloads]
+    [downloadedKeys]
   );
 
   const download = useCallback(
@@ -71,9 +77,9 @@ export function useDownloads() {
       } catch (err) {
         setError(String(err));
       }
+      await refresh();
       setDownloading(null);
       busy.current = false;
-      await refresh();
       return downloadedPath;
     },
     [refresh]
@@ -90,17 +96,21 @@ export function useDownloads() {
       try {
         if (!isTauri()) throw new Error("Open cstmSKN on your Mac to download skins.");
         unlisten = await listen<DownloadProgress>("download-progress", (event) => {
-          setDownloading(`${event.payload.skinName} (${event.payload.current}/${event.payload.total})`);
+          setDownloading(
+            `${event.payload.skinName} (${event.payload.current}/${event.payload.total})`
+          );
         });
-        await downloadMultipleSkins(items);
+        const count = await downloadMultipleSkins(items);
+        if (count !== items.length)
+          throw new Error(`${items.length - count} downloads failed. Try again.`);
       } catch (err) {
         setError(String(err));
       } finally {
         unlisten?.();
+        await refresh();
         setDownloading(null);
         busy.current = false;
       }
-      await refresh();
     },
     [refresh]
   );
@@ -113,6 +123,7 @@ export function useDownloads() {
         await refresh();
       } catch (err) {
         setError(String(err));
+        throw err;
       }
     },
     [refresh]

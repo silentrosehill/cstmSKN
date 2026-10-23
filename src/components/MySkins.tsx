@@ -399,12 +399,13 @@ export default function MySkins({
   }
   async function remove(champion: string, items: DownloadedSkin[]) {
     if (patcherActive) return;
-    if (items.some((item) => selection[champion] === item.skin_name)) {
+    for (const item of items) {
+      await onDelete(item.champion_name, item.skin_name);
+      if (selection[champion] !== item.skin_name) continue;
       const next = { ...selection };
       delete next[champion];
       onSelectionChange(next);
     }
-    await Promise.all(items.map((item) => onDelete(item.champion_name, item.skin_name)));
   }
   return (
     <div className="library-decks-view">

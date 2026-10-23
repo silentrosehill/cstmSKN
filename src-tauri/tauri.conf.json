@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "cstmSKN",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "identifier": "com.silentrosehill.cstmskn",
   "build": {
     "frontendDist": "../dist",
@@ -36,7 +36,18 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self' asset: http://asset.localhost",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' asset: http://asset.localhost data: blob: https://ddragon.leagueoflegends.com https://raw.communitydragon.org",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost https://ddragon.leagueoflegends.com https://raw.communitydragon.org https://raw.githubusercontent.com https://api.github.com https://universe-meeps.leagueoflegends.com",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "frame-src": "'none'",
+        "form-action": "'none'"
+      }
     },
     "macOSPrivateApi": true
   },
@@ -61,9 +72,6 @@
     "createUpdaterArtifacts": true
   },
   "plugins": {
-    "shell": {
-      "open": true
-    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU2REI0NzQ1RjFCMzU3MEMKUldRTVY3UHhSVWZiNXBFV1RFOWdHeUJUT3NxVExRcjdxSll0UjNwRUxkZ1JWRlNpY3FBM08wcnkK",
       "endpoints": [

@@ -1,20 +1,21 @@
+import { getItem, setItem } from "../lib/storage";
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { sidebarWidth, SIDEBAR_DEFAULT, SIDEBAR_MIN, SIDEBAR_MAX } from "../lib/layout";
 export function useSidebar() {
   const [width, setWidth] = useState(() =>
-    sidebarWidth(Number(localStorage.getItem("cstm:sidebar-width") ?? SIDEBAR_DEFAULT))
+    sidebarWidth(Number(getItem("cstm:sidebar-width") ?? SIDEBAR_DEFAULT))
   );
   const [resizing, setResizing] = useState(false);
-  const expanded = useRef(Number(localStorage.getItem("cstm:sidebar-expanded")) || SIDEBAR_DEFAULT);
+  const expanded = useRef(Number(getItem("cstm:sidebar-expanded")) || SIDEBAR_DEFAULT);
   const drag = useRef<{ x: number; width: number } | null>(null);
   const collapsed = width === SIDEBAR_MIN;
   useEffect(() => {
     const timer = setTimeout(() => {
-      localStorage.setItem("cstm:sidebar-width", String(width));
+      setItem("cstm:sidebar-width", String(width));
       if (width > SIDEBAR_MIN) {
         expanded.current = width;
-        localStorage.setItem("cstm:sidebar-expanded", String(width));
+        setItem("cstm:sidebar-expanded", String(width));
       }
     }, 150);
     return () => clearTimeout(timer);
@@ -23,7 +24,7 @@ export function useSidebar() {
     setWidth((current) => {
       if (current === SIDEBAR_MIN) return sidebarWidth(Math.max(expanded.current, 180));
       expanded.current = current;
-      localStorage.setItem("cstm:sidebar-expanded", String(current));
+      setItem("cstm:sidebar-expanded", String(current));
       return SIDEBAR_MIN;
     });
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {

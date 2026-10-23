@@ -49,11 +49,22 @@ auto utility::unzip(fs::path const& src, fs::path const& dst) -> void {
         mz_zip_archive_file_stat stat = {};
         lol_throw_if_zip(mz_zip_reader_file_stat, zip.get(), index, &stat);
         if (stat.m_is_directory || !stat.m_is_supported) continue;
-        auto file_path = fs::path((char const*)stat.m_filename).lexically_normal();
+        auto file_path = fs::path((char const*)stat.m_filename);
+        lol_throw_if(file_path.empty() || file_path.has_root_path());
+        lol_throw_if(file_path.generic_string().find('\\') != std::string::npos);
+        lol_throw_if(file_path.generic_string().find(':') != std::string::npos);
         for (auto const& component : file_path) {
             lol_throw_if(component == "..");
         }
-        auto dst_file = io::File::create(dst / file_path);
+        // Check before normalization: a/../b must not evade traversal checks.
+        file_path = file_path.lexically_normal();
+        auto target = dst;
+        lol_throw_if(fs::is_symlink(fs::symlink_status(target)));
+        for (auto const& component : file_path) {
+            target /= component;
+            lol_throw_if(fs::is_symlink(fs::symlink_status(target)));
+        }
+        auto dst_file = io::File::create(target);
         auto dst_data = dst_file.resize(stat.m_uncomp_size);
         lol_throw_if_zip(mz_zip_reader_extract_to_mem_no_alloc, zip.get(), index, dst_data, dst_file.size(), 0, 0, 0);
     }

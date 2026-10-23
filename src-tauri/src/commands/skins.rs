@@ -1,7 +1,9 @@
 use crate::state::DownloadedSkin;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
+use std::time::Duration;
+use std::sync::Mutex;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -21,15 +23,83 @@ struct DownloadProgress {
     skin_name: String,
 }
 
-/// Skin names like "K/DA Kai'Sa" contain '/', which is a path separator.
-/// Encode it for on-disk folder/file names and decode when reading back,
-/// so the logical skin name stays intact everywhere else.
-fn encode_path(s: &str) -> String {
-    s.replace('/', "%2F")
+// Keep legacy slash encoding for existing libraries. Reject ambiguous or unsafe
+// logical names before joining them to a privileged filesystem path.
+fn encode_path(s: &str) -> Result<String, String> {
+    if s.trim().is_empty() || s == "." || s == ".." || s.contains('%')
+        || s.contains('\\') || s.chars().any(char::is_control) || s.len() > 220 {
+        return Err("Invalid skin or champion name".into());
+    }
+    Ok(s.replace('/', "%2F"))
 }
+fn decode_path(s: &str) -> String { s.replace("%2F", "/") }
 
-fn decode_path(s: &str) -> String {
-    s.replace("%2F", "/")
+// Serialize library mutations, including clearing/deleting during a download.
+static LIBRARY_LOCK: Mutex<()> = Mutex::new(());
+const MAX_DOWNLOAD: u64 = 1024 * 1024 * 1024;
+fn skin_folder(base: &std::path::Path, champion: &str, skin: &str) -> Result<PathBuf, String> {
+    let mut folder = base.to_path_buf();
+    for component in [encode_path(champion)?, encode_path(skin)?] {
+        folder.push(component);
+        if fs::symlink_metadata(&folder).map(|m| m.file_type().is_symlink()).unwrap_or(false) {
+            return Err("Library folders must not be symbolic links".into());
+        }
+    }
+    Ok(folder)
+}
+fn catalog_url(url: &str) -> Result<(), String> {
+    const PREFIX: &str = "https://raw.githubusercontent.com/Alban1911/LeagueSkins/main/skins/";
+    let path = url.strip_prefix(PREFIX).ok_or("Only catalog skin downloads are allowed")?;
+    if path.is_empty() || path.contains('?') || path.contains('#') || path.contains("..")
+        || path.contains('%') || !path.bytes().all(|c| c.is_ascii_digit() || c == b'/' || c == b'.' || c.is_ascii_alphabetic())
+        || !(path.ends_with(".fantome") || path.ends_with(".zip")) {
+        return Err("Invalid catalog download URL".into());
+    }
+    Ok(())
+}
+fn copy_package(mut reader: impl Read, path: &std::path::Path) -> Result<(), String> {
+    let temp = path.with_extension("download");
+    let result = (|| {
+        // Never follow a preexisting symlink, even for a temporary download.
+        let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&temp)
+            .map_err(|e| format!("Cannot create download: {e}"))?;
+        let size = std::io::copy(&mut reader.by_ref().take(MAX_DOWNLOAD + 1), &mut file)
+            .map_err(|e| format!("Download interrupted: {e}"))?;
+        if size > MAX_DOWNLOAD { return Err("Skin package exceeds 1 GB".into()); }
+        file.flush().map_err(|e| e.to_string())?;
+        file.sync_all().map_err(|e| e.to_string())?;
+        drop(file);
+        let mut header = [0u8; 4];
+        fs::File::open(&temp).and_then(|mut f| f.read_exact(&mut header)).map_err(|_| "Incomplete skin package".to_string())?;
+        if header != [b'P', b'K', 3, 4] { return Err("Downloaded file is not a skin archive".into()); }
+        // Listing validates the central directory without extracting untrusted files.
+        let check = std::process::Command::new("/usr/bin/unzip").args(["-Z1"]).arg(&temp).output()
+            .map_err(|e| e.to_string())?;
+        if !check.status.success() { return Err("Downloaded archive is incomplete".into()); }
+        fs::rename(&temp, path).map_err(|e| e.to_string())?;
+        Ok(())
+    })();
+    // Only remove temporary files created by this call.
+    // The library lock prevents another download from owning this path.
+    if result.is_err() { let _ = fs::remove_file(&temp); }
+    result
+}
+fn download_to(base: &std::path::Path, url: &str, champion: &str, skin: &str) -> Result<String, String> {
+    catalog_url(url)?;
+    let folder = skin_folder(base, champion, skin)?;
+    fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let path = folder.join(format!("{}.zip", encode_path(skin)?));
+    // A crashed earlier session may have left a temporary file. Removing it does
+    // not follow symlinks; the mutation lock excludes concurrent downloads.
+    let _ = fs::remove_file(path.with_extension("download"));
+    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(180)).redirects(0).build();
+    let response = agent.get(url).call().map_err(|e| format!("Download failed: {e}"))?;
+    if response.status() != 200 { return Err(format!("Download returned HTTP {}", response.status())); }
+    if response.header("Content-Length").and_then(|v| v.parse::<u64>().ok()).is_some_and(|v| v > MAX_DOWNLOAD) {
+        return Err("Skin package exceeds 1 GB".into());
+    }
+    copy_package(response.into_reader(), &path)?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 fn skins_dir(app: &AppHandle) -> PathBuf {
@@ -61,29 +131,8 @@ pub async fn download_skin(
     let base = skins_dir(&app);
     flatten(
         tauri::async_runtime::spawn_blocking(move || {
-            let skin_dir = base
-                .join(encode_path(&champion_name))
-                .join(encode_path(&skin_name));
-            fs::create_dir_all(&skin_dir).map_err(|e| e.to_string())?;
-
-            let zip_path = skin_dir.join(format!("{}.zip", encode_path(&skin_name)));
-
-            let resp = ureq::get(&url)
-                .call()
-                .map_err(|e| format!("Download failed: {e}"))?;
-
-            let mut bytes = Vec::new();
-            resp.into_reader()
-                .read_to_end(&mut bytes)
-                .map_err(|e| format!("Read failed: {e}"))?;
-
-            if bytes.is_empty() {
-                return Err("Downloaded file is empty".to_string());
-            }
-
-            fs::write(&zip_path, &bytes).map_err(|e| format!("Write failed: {e}"))?;
-
-            Ok(zip_path.to_string_lossy().into_owned())
+            let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+            download_to(&base, &url, &champion_name, &skin_name)
         })
         .await,
     )
@@ -99,46 +148,15 @@ pub async fn download_multiple_skins(
     let base = skins_dir(&app);
     flatten(
         tauri::async_runtime::spawn_blocking(move || {
+            let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
             let total = items.len() as u32;
             let mut success_count = 0u32;
-
-            for item in &items {
-                let skin_dir = base
-                    .join(encode_path(&item.champion_name))
-                    .join(encode_path(&item.skin_name));
-                if fs::create_dir_all(&skin_dir).is_err() {
-                    continue;
-                }
-
-                let zip_path = skin_dir.join(format!("{}.zip", encode_path(&item.skin_name)));
-
-                let ok = (|| -> bool {
-                    let resp = match ureq::get(&item.url).call() {
-                        Ok(r) => r,
-                        Err(_) => return false,
-                    };
-                    let mut bytes = Vec::new();
-                    if resp.into_reader().read_to_end(&mut bytes).is_err() || bytes.is_empty() {
-                        return false;
-                    }
-                    fs::write(&zip_path, &bytes).is_ok()
-                })();
-
-                if ok {
-                    success_count += 1;
-                }
-
-                app.emit(
-                    "download-progress",
-                    DownloadProgress {
-                        current: success_count,
-                        total,
-                        skin_name: item.skin_name.clone(),
-                    },
-                )
-                .ok();
+            for (index, item) in items.iter().enumerate() {
+                if download_to(&base, &item.url, &item.champion_name, &item.skin_name).is_ok() { success_count += 1; }
+                let _ = app.emit("download-progress", DownloadProgress {
+                    current: index as u32 + 1, total, skin_name: item.skin_name.clone(),
+                });
             }
-
             Ok(success_count)
         })
         .await,
@@ -180,7 +198,7 @@ pub async fn list_downloaded_skins(app: AppHandle) -> Result<Vec<DownloadedSkin>
                         let skin_dir_name = skin_entry.file_name().to_string_lossy().to_string();
                         let zip_path = skin_entry.path().join(format!("{}.zip", &skin_dir_name));
 
-                        if zip_path.exists() {
+                        if fs::symlink_metadata(&zip_path).map(|m| m.is_file() && m.len() > 0).unwrap_or(false) {
                             skins.push(DownloadedSkin {
                                 champion_name: champion_name.clone(),
                                 skin_name: decode_path(&skin_dir_name),
@@ -191,6 +209,7 @@ pub async fn list_downloaded_skins(app: AppHandle) -> Result<Vec<DownloadedSkin>
                 }
             }
 
+            skins.sort_by(|a, b| (&a.champion_name, &a.skin_name).cmp(&(&b.champion_name, &b.skin_name)));
             Ok(skins)
         })
         .await,
@@ -206,14 +225,13 @@ pub async fn delete_downloaded_skin(
     let base = skins_dir(&app);
     flatten(
         tauri::async_runtime::spawn_blocking(move || {
-            let skin_dir = base
-                .join(encode_path(&champion_name))
-                .join(encode_path(&skin_name));
+            let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
+            let skin_dir = skin_folder(&base, &champion_name, &skin_name)?;
             if skin_dir.exists() {
                 fs::remove_dir_all(&skin_dir).map_err(|e| e.to_string())?;
             }
 
-            let champion_dir = base.join(encode_path(&champion_name));
+            let champion_dir = base.join(encode_path(&champion_name)?);
             if champion_dir.exists() {
                 if champion_dir
                     .read_dir()
@@ -243,6 +261,7 @@ pub async fn clear_all_skins(app: AppHandle) -> Result<(), String> {
     let base = skins_dir(&app);
     flatten(
         tauri::async_runtime::spawn_blocking(move || {
+            let _guard = LIBRARY_LOCK.lock().map_err(|e| e.to_string())?;
             if base.exists() {
                 fs::remove_dir_all(&base).map_err(|e| e.to_string())?;
                 fs::create_dir_all(&base).ok();
@@ -254,3 +273,49 @@ pub async fn clear_all_skins(app: AppHandle) -> Result<(), String> {
 }
 
 use super::dir_size;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn temp() -> PathBuf {
+        let p = std::env::temp_dir().join(format!("cstmskn-download-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&p).unwrap(); p
+    }
+    #[test]
+    fn names_cannot_escape_or_collide_with_slash_encoding() {
+        for name in ["", ".", "..", "%2F", "a\\b", "bad\nname"] { assert!(encode_path(name).is_err(), "{name:?}"); }
+        assert_eq!(encode_path("K/DA Kai'Sa").unwrap(), "K%2FDA Kai'Sa");
+        assert_eq!(decode_path("K%2FDA Kai'Sa"), "K/DA Kai'Sa");
+    }
+    #[test]
+    fn catalog_downloads_cannot_fetch_local_or_arbitrary_urls() {
+        assert!(catalog_url("https://raw.githubusercontent.com/Alban1911/LeagueSkins/main/skins/1/1001/1001.fantome").is_ok());
+        for url in ["http://127.0.0.1/private", "file:///etc/passwd", "https://raw.githubusercontent.com/Alban1911/LeagueSkins/main/skins/../secret.zip", "https://raw.githubusercontent.com/Alban1911/LeagueSkins/main/skins/%2e%2e/x.zip"] { assert!(catalog_url(url).is_err()); }
+    }
+    #[test]
+    fn failed_or_truncated_download_never_replaces_existing_skin() {
+        let dir = temp(); let path = dir.join("skin.zip"); fs::write(&path, b"previous").unwrap();
+        assert!(copy_package(&b"not a zip"[..], &path).is_err());
+        assert!(copy_package(&b"PK\x03\x04truncated"[..], &path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"previous");
+        assert!(!path.with_extension("download").exists()); fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn valid_download_replaces_skin_atomically() {
+        let dir = temp(); let fixture = dir.join("fixture.txt");
+        fs::write(&fixture, b"skin fixture").unwrap();
+        let archive = dir.join("valid.zip");
+        assert!(std::process::Command::new("/usr/bin/zip").current_dir(&dir).args(["-q", "valid.zip", "fixture.txt"]).status().unwrap().success());
+        let destination = dir.join("installed.zip"); fs::write(&destination, b"previous").unwrap();
+        copy_package(fs::File::open(&archive).unwrap(), &destination).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), fs::read(&archive).unwrap());
+        assert!(!destination.with_extension("download").exists()); fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn library_does_not_follow_symlink_directories() {
+        let dir = temp(); let outside = temp();
+        std::os::unix::fs::symlink(&outside, dir.join("Champion")).unwrap();
+        assert!(skin_folder(&dir, "Champion", "Skin").is_err());
+        fs::remove_dir_all(dir).unwrap(); fs::remove_dir_all(outside).unwrap();
+    }
+}

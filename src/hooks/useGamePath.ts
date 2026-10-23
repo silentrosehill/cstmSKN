@@ -1,3 +1,4 @@
+import { getItem, setItem } from "../lib/storage";
 import { useState, useEffect, useCallback } from "react";
 import { detectGamePath, setGamePath, validateGamePath } from "../lib/commands";
 import type { AppStatus } from "../types";
@@ -11,7 +12,7 @@ export function useGamePath() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const setupDone = localStorage.getItem(SETUP_KEY) === "true";
+    const setupDone = getItem(SETUP_KEY) === "true";
 
     detectGamePath()
       .then((path) => {
@@ -40,7 +41,7 @@ export function useGamePath() {
       setGamePathState(validated);
       setStatus("game-detected");
       setError(null);
-      localStorage.setItem(SETUP_KEY, "true");
+      setItem(SETUP_KEY, "true");
       return true;
     }
     return false;

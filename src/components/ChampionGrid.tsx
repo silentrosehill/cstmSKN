@@ -1,3 +1,4 @@
+import { getItem, setItem, readStored, stringList } from "../lib/storage";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Search,
@@ -46,19 +47,15 @@ export default function ChampionGrid({ onSelect, search, onSearchChange }: Props
   const scroll = useRef<HTMLDivElement>(null);
   const sections = useRef(new Map<string, HTMLElement>());
   const [sort, setSort] = useState<ChampionSort>(() => {
-    const value = localStorage.getItem("cstm:champion-sort");
+    const value = getItem("cstm:champion-sort");
     return isChampionSort(value) ? value : "name-asc";
   });
   useEffect(() => {
-    localStorage.setItem("cstm:champion-sort", sort);
+    setItem("cstm:champion-sort", sort);
   }, [sort]);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("glass:favorites") ?? "[]");
-    } catch {
-      return [];
-    }
+    return stringList(readStored("glass:favorites", []));
   });
   const [compact, setCompact] = useState(false);
   const [skinLimit, setSkinLimit] = useState(48);
@@ -91,7 +88,7 @@ export default function ChampionGrid({ onSelect, search, onSearchChange }: Props
   function favorite(id: string) {
     setFavorites((prev) => {
       const next = prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id];
-      localStorage.setItem("glass:favorites", JSON.stringify(next));
+      setItem("glass:favorites", JSON.stringify(next));
       return next;
     });
   }
@@ -225,14 +222,12 @@ export default function ChampionGrid({ onSelect, search, onSearchChange }: Props
                     disabled={!availableLetters.has(letter)}
                     aria-label={`Jump to ${letter}`}
                     onClick={() =>
-                      sections.current
-                        .get(letter)
-                        ?.scrollIntoView({
-                          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-                            ? "instant"
-                            : "smooth",
-                          block: "start",
-                        })
+                      sections.current.get(letter)?.scrollIntoView({
+                        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                          ? "instant"
+                          : "smooth",
+                        block: "start",
+                      })
                     }
                   >
                     {letter}

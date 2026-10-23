@@ -181,11 +181,10 @@ fn relaunch_via_osascript() {
     let home = std::env::var("HOME").unwrap_or_default();
     let user = std::env::var("USER").unwrap_or_default();
 
+    let quote = |value: &str| format!("'{}'", value.replace('\'', "'\\''"));
     let shell_cmd = format!(
-        "cd / && HOME='{}' USER='{}' \"{}\"",
-        home,
-        user,
-        exe.to_string_lossy()
+        "cd / && HOME={} USER={} {} --user-home {}",
+        quote(&home), quote(&user), quote(&exe.to_string_lossy()), quote(&home)
     );
     let osa_escaped = shell_cmd.replace('\\', "\\\\").replace('"', "\\\"");
     let applescript = format!(

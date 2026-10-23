@@ -2,11 +2,13 @@
 
 # cstmSKN
 
-A personal macOS skin manager with a native glass interface, built on [Zushi](https://github.com/Mouadzz/zushi). Maintained by **silentrosehill**.
+A macOS skin manager with a native glass interface, built on [Zushi](https://github.com/Mouadzz/zushi).
 
 [Download the latest release](https://github.com/silentrosehill/cstmSKN/releases/latest)
 
 ## Features
+
+- **Changelog** shows app release history offline. It can be hidden or reordered in Settings like the other sidebar tabs.
 
 - **Favorites** collects starred catalog skins, chromas, and custom imports in one place. Select or deselect downloaded skins and imported mods directly from their cards; missing skins offer Download & select.
 - **Loadouts** saves named sets of skins and mods, restores available items, and identifies missing downloads.
@@ -89,9 +91,11 @@ The script checks source and bundled application versions, runs the test suites 
 
 ## Validation
 
-v0.1.23 passed TypeScript/Vite production compilation, native Rust compilation, 57 frontend tests, 13 Rust tests, and code-signature checks. Live catalog checks covered all 173 champions, release dates, skin search, current-patch additions, and representative loading-screen portraits. The native glass bridge resolves AppKit at runtime without strongly linking the new class, retaining its fallback for older macOS versions.
+v0.1.24 passed 59 frontend tests, 18 Rust tests, six Mach-O regression cases, and six real archive-import fixtures, including traversal/absolute-path rejection and a valid archive. TypeScript/Vite production compilation, native release compilation, code signatures, and updater signature/version/tamper checks are part of release validation.
 
-The patcher binary is unchanged from the user-confirmed working release. Its Mach-O import fix previously passed 6 native regression cases and an offline check against the installed game. New coverage includes category coexistence, real archive imports, duplicate import names, legacy metadata migration, loadout restore, local lock-in/trades/rerolls, sidebar preferences, tab accents, library deck grouping/selection/chroma handling, and download-only selection isolation. The latest interface was checked through compilation and automated tests; live window interactions and a live champion-select session were not manually verified.
+The engine was rebuilt with build-path remapping and hardened archive paths. The working Mach-O compatibility fix remains; an offline scan against the installed game still finds the expected signature, import, and stub. Live game patching, native window interaction, and updater installation were not manually repeated for this release.
+
+See [AUDIT.md](AUDIT.md) for fixed bugs, optimization details, privacy scope, dependency audit results, and remaining limitations.
 
 See [ASSETS.md](ASSETS.md) for Apple interface assets and Riot metadata sources.
 

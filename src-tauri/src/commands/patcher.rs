@@ -41,10 +41,15 @@ pub(super) fn sidecar_path(_app: &AppHandle) -> PathBuf {
         }
     }
 
+    #[cfg(debug_assertions)]
+    {
     // Dev: binary lives in src-tauri/binaries/ with the target triple suffix
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("binaries")
         .join(format!("mod-tools-{}", triple))
+    }
+    #[cfg(not(debug_assertions))]
+    { let _ = triple; PathBuf::from("mod-tools") }
 }
 
 fn append_patch_log(path: &Path, message: &str) {
@@ -442,7 +447,6 @@ pub async fn stop_patcher(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
     let stop_gen = {
         let mut s = shared.lock().map_err(|e| e.to_string())?;
         s.patcher_gen += 1;
-        s.patcher_status = PatcherStatus::Idle;
         s.patcher_gen
     };
     tauri::async_runtime::spawn_blocking(move || {
@@ -450,8 +454,31 @@ pub async fn stop_patcher(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
         let mut s = shared.lock().map_err(|e| e.to_string())?;
         // A newer apply supersedes this stop; it owns the previous tracer now.
         if s.patcher_gen != stop_gen { return Ok(()); }
-        if let Some(mut pipe) = s.patcher_stdin.take() { pipe.write_all(b"\n").ok(); }
-        s.patcher_status = PatcherStatus::Idle;
+        if let Some(mut pipe) = s.patcher_stdin.take() { let _ = pipe.write_all(b"\n"); }
+        let pid = s.patcher_pid;
+        drop(s);
+        if let Some(pid) = pid {
+            let gone = |timeout: u64| {
+                let end = std::time::Instant::now() + std::time::Duration::from_millis(timeout);
+                while unsafe { libc::kill(pid as i32, 0) } == 0 {
+                    if std::time::Instant::now() >= end { return false; }
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                true
+            };
+            if !gone(3000) {
+                unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+                if !gone(1500) {
+                    unsafe { libc::kill(pid as i32, libc::SIGKILL); }
+                    if !gone(2000) { return Err("Patcher did not stop. Try again before updating.".into()); }
+                }
+            }
+        }
+        let mut s = shared.lock().map_err(|e| e.to_string())?;
+        if s.patcher_gen == stop_gen {
+            s.patcher_pid = None;
+            s.patcher_status = PatcherStatus::Idle;
+        }
         Ok(())
     }).await.map_err(|e| e.to_string())?
 }
@@ -482,9 +509,14 @@ pub fn clear_work_dir(
         }
     }
     let base = work_dir(&app);
-    let _ = fs::remove_dir_all(base.join("installed"));
-    let _ = fs::remove_dir_all(base.join("overlay"));
-    let _ = fs::remove_file(base.join("config"));
+    for name in ["installed", "overlay"] {
+        if let Err(e) = fs::remove_dir_all(base.join(name)) {
+            if e.kind() != std::io::ErrorKind::NotFound { return Err(e.to_string()); }
+        }
+    }
+    if let Err(e) = fs::remove_file(base.join("config")) {
+        if e.kind() != std::io::ErrorKind::NotFound { return Err(e.to_string()); }
+    }
     Ok(())
 }
 

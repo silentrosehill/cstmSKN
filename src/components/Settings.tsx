@@ -1,3 +1,4 @@
+import { removeItem } from "../lib/storage";
 import { useState, useEffect, useCallback } from "react";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -83,6 +84,7 @@ export default function Settings({
   onSkinsCleared,
   onCustomsCleared,
 }: SettingsProps) {
+  const [storageError, setStorageError] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<string | null>(null);
   const [autoStart, setAutoStart] = useState(false);
   const [autoStartLoading, setAutoStartLoading] = useState(true);
@@ -165,24 +167,30 @@ export default function Settings({
 
   const handleClearContent = async () => {
     setClearingContent(true);
-    try {
-      await Promise.all([clearAllSkins(), clearAllCustoms()]);
-      localStorage.removeItem("zushi_skin_selection");
-      localStorage.removeItem("zushi_customs_enabled");
-      await Promise.all([onSkinsCleared(), onCustomsCleared()]);
-    } catch {
-      // ignore
-    }
+    setStorageError(null);
+    const results = await Promise.allSettled([
+      clearAllSkins().then(async () => {
+        removeItem("zushi_skin_selection");
+        await onSkinsCleared();
+      }),
+      clearAllCustoms().then(async () => {
+        removeItem("zushi_customs_enabled");
+        await onCustomsCleared();
+      }),
+    ]);
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") setStorageError(String(failed.reason));
     setClearingContent(false);
     await refreshCache();
   };
 
   const handleClearWork = async () => {
     setClearingWork(true);
+    setStorageError(null);
     try {
       await clearWorkDir();
-    } catch {
-      // ignore
+    } catch (error) {
+      setStorageError(String(error));
     }
     setClearingWork(false);
     await refreshCache();
@@ -193,6 +201,11 @@ export default function Settings({
 
   return (
     <div className="h-full w-full overflow-y-auto p-5">
+      {storageError && (
+        <p role="alert" className="text-error mb-4 text-sm">
+          {storageError}
+        </p>
+      )}
       <section className="appearance-settings" aria-label="Appearance">
         <h2>Appearance</h2>
         <div className="appearance-modes">
@@ -452,10 +465,7 @@ export default function Settings({
       </details>
       <details className="about-app">
         <summary>About cstmSKN</summary>
-        <p>
-          Personal edition by silentrosehill. Based on Zushi by Mouadzz and contributors. Artwork ©
-          Riot Games.
-        </p>
+        <p>Based on Zushi by Mouadzz and contributors. Artwork © Riot Games.</p>
         <p>Not affiliated with Riot Games.</p>
       </details>
       {pathError && <Toast message={pathError} onClose={() => setPathError(null)} />}

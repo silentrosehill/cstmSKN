@@ -153,8 +153,8 @@ test("champion select opens once on lock-in and follows trades without reopening
   assert.equal(gate.accept({ state: "selecting", championId: 164, locked: true }, false), 164);
 });
 test("each tab has its own accent while a fixed color preference remains available", () => {
-  assert.equal(Object.keys(TAB_ACCENTS).length, 9);
-  assert.equal(new Set(Object.values(TAB_ACCENTS)).size, 9);
+  assert.equal(Object.keys(TAB_ACCENTS).length, 10);
+  assert.equal(new Set(Object.values(TAB_ACCENTS)).size, 10);
   assert.equal(tabAccent("champions", "rose", "tab"), "ocean");
   assert.equal(tabAccent("game-mods", "rose", "tab"), "mod-rose");
   assert.equal(tabAccent("champions", "rose", "fixed"), "rose");

@@ -1,17 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for Zushi",
+  "description": "cstmSKN desktop capabilities",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
-    "shell:allow-execute",
-    "shell:allow-spawn",
-    "shell:allow-stdin-write",
-    "shell:allow-kill",
-    "shell:allow-open",
     "dialog:allow-open",
     "autostart:allow-enable",
     "autostart:allow-disable",

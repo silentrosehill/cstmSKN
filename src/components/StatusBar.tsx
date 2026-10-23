@@ -7,6 +7,7 @@ interface StatusBarProps {
   native: boolean;
   onHealth: () => void;
   patcherStatus: PatcherStatus;
+  patcherActive: boolean;
   skinCount: number;
   customCount: number;
   onApply: () => void;
@@ -50,14 +51,14 @@ export default function StatusBar({
   native,
   onHealth,
   patcherStatus,
+  patcherActive,
   skinCount,
   customCount,
   onApply,
   onStop,
 }: StatusBarProps) {
   const { label, dotClass, spinner } = getStatusInfo(patcherStatus);
-  const isActive =
-    patcherStatus !== "Idle" && !(typeof patcherStatus === "object" && "Error" in patcherStatus);
+  const isActive = patcherActive;
 
   const totalSelected = skinCount + customCount;
   const canApply = totalSelected > 0 && !isActive;

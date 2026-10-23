@@ -7,6 +7,7 @@ export const DEFAULT_TAB_ORDER = [
   "game-mods",
   "customs",
   "enabled",
+  "changelog",
   "settings",
 ] as const;
 export type TabId = (typeof DEFAULT_TAB_ORDER)[number];

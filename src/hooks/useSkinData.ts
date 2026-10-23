@@ -15,6 +15,8 @@ const CHROMAS_CACHE_KEY = "zushi:chromas";
 
 let skinIdsCache: Record<string, string> | null = null;
 let skinIdsPending: Promise<Record<string, string>> | null = null;
+let repoZipsPending: Promise<Map<string, string>> | null = null;
+let chromaPending: Promise<Map<number, { colors: string[]; parentId: number }>> | null = null;
 let repoZipsCache: Map<string, string> | null = null;
 let chromaInfoCache: Map<number, { colors: string[]; parentId: number }> | null = null;
 
@@ -67,7 +69,10 @@ export function ensureSkinIds(): Promise<Record<string, string>> {
         return stale;
       }
       throw err;
-    }).finally(() => { skinIdsPending = null; });
+    })
+    .finally(() => {
+      skinIdsPending = null;
+    });
   return skinIdsPending;
 }
 
@@ -80,7 +85,8 @@ export function ensureRepoZips(): Promise<Map<string, string>> {
     return Promise.resolve(repoZipsCache);
   }
 
-  return fetch(TREE_API_URL)
+  if (repoZipsPending) return repoZipsPending;
+  repoZipsPending = fetch(TREE_API_URL)
     .then((res) => {
       if (!res.ok) throw new Error(`GitHub API ${res.status}`);
       return res.json();
@@ -113,7 +119,11 @@ export function ensureRepoZips(): Promise<Map<string, string>> {
         return repoZipsCache;
       }
       throw err;
+    })
+    .finally(() => {
+      repoZipsPending = null;
     });
+  return repoZipsPending;
 }
 
 export function ensureChromaInfo(): Promise<Map<number, { colors: string[]; parentId: number }>> {
@@ -125,17 +135,21 @@ export function ensureChromaInfo(): Promise<Map<number, { colors: string[]; pare
     return Promise.resolve(chromaInfoCache);
   }
 
-  return ensureSkinMetadata()
-    .then(metadata => {
+  if (chromaPending) return chromaPending;
+  chromaPending = ensureSkinMetadata()
+    .then((metadata) => {
       const map = new Map(Object.entries(metadata.chromas).map(([id, info]) => [Number(id), info]));
       chromaInfoCache = map;
       if (map.size) setCache(CHROMAS_CACHE_KEY, [...map.entries()]);
       return map;
     })
     .catch(() => {
-      chromaInfoCache = new Map();
-      return chromaInfoCache;
+      return new Map();
+    })
+    .finally(() => {
+      chromaPending = null;
     });
+  return chromaPending;
 }
 
 export function getSkinsForChampion(champion: Champion, skinIds: Record<string, string>): Skin[] {
@@ -309,16 +323,30 @@ export function useSkinData(champion: Champion | null) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([ensureSkinIds(), ensureRepoZips(), ensureChromaInfo()])
-      .then(([ids]) => { if (!cancelled) setSkinIds({ ...ids }); })
-      .catch((err) => { if (!cancelled) setError(String(err)); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then(([ids]) => {
+        if (!cancelled) setSkinIds({ ...ids });
+      })
+      .catch((err) => {
+        if (!cancelled) setError(String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Derive the gallery in the same render as its metadata. An effect-backed
   // copy could initialize a search/patch target against the previous skin list.
-  const skins = useMemo(() => champion && skinIds ? getSkinsForChampion(champion, skinIds) : [], [champion, skinIds]);
-  const groups = useMemo(() => champion && skinIds ? getSkinsGroupedForChampion(champion, skinIds) : [], [champion, skinIds]);
+  const skins = useMemo(
+    () => (champion && skinIds ? getSkinsForChampion(champion, skinIds) : []),
+    [champion, skinIds]
+  );
+  const groups = useMemo(
+    () => (champion && skinIds ? getSkinsGroupedForChampion(champion, skinIds) : []),
+    [champion, skinIds]
+  );
 
   const getSkins = useCallback(
     (champ: Champion): Skin[] => {

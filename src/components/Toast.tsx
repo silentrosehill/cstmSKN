@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { X } from "lucide-react";
 
 interface ToastProps {
@@ -10,20 +10,27 @@ interface ToastProps {
 export default function Toast({ message, onClose, duration = 4000 }: ToastProps) {
   const [visible, setVisible] = useState(false);
 
+  const close = useRef(onClose);
+  close.current = onClose;
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    // trigger enter animation
-    requestAnimationFrame(() => setVisible(true));
+    const frame = requestAnimationFrame(() => setVisible(true));
 
     const timer = setTimeout(() => {
       setVisible(false);
-      setTimeout(onClose, 200); // wait for exit animation
+      exitTimer.current = setTimeout(() => close.current(), 200);
     }, duration);
 
-    return () => clearTimeout(timer);
-  }, [duration, onClose]);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+      if (exitTimer.current) clearTimeout(exitTimer.current);
+    };
+  }, [duration, message]);
 
   return (
-    <div role="alert"
+    <div
+      role="alert"
       className={[
         "fixed top-0 right-5 z-50",
         "flex items-center gap-3 rounded-lg py-3 pr-3 pl-4",
@@ -39,7 +46,8 @@ export default function Toast({ message, onClose, duration = 4000 }: ToastProps)
         aria-label="Dismiss notification"
         onClick={() => {
           setVisible(false);
-          setTimeout(onClose, 200);
+          if (exitTimer.current) clearTimeout(exitTimer.current);
+          exitTimer.current = setTimeout(() => close.current(), 200);
         }}
         className="text-ink-muted hover:text-ink shrink-0 cursor-pointer transition-colors"
       >

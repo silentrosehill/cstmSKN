@@ -7,6 +7,11 @@ cmake_policy(SET CMP0169 OLD)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Avoid leaking developer home paths through __FILE__ and source_location.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    add_compile_options("-ffile-prefix-map=$ENV{HOME}=/build")
+endif()
+
 add_subdirectory(dep)
 
 add_library(mod-tools-lib STATIC

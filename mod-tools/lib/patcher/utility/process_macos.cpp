@@ -1,0 +1,261 @@
+#ifdef __APPLE__
+#    include <error.hpp>
+
+#    include "process.hpp"
+// do not reoder
+#    include <atomic>
+#    include <cstdarg>
+#    include <libproc.h>
+#    include <mach/mach.h>
+#    include <mach/mach_traps.h>
+#    include <mach/mach_vm.h>
+#    include <unistd.h>
+
+using namespace lol;
+using namespace lol::patcher;
+
+Process::Process() noexcept = default;
+
+Process::Process(Process&& other) noexcept {
+    std::swap(handle_, other.handle_);
+    std::swap(base_, other.base_);
+    std::swap(path_, other.path_);
+    std::swap(pid_, other.pid_);
+}
+
+Process& Process::operator=(Process&& other) noexcept {
+    if (this == &other) return *this;
+    std::swap(handle_, other.handle_);
+    std::swap(base_, other.base_);
+    std::swap(path_, other.path_);
+    std::swap(pid_, other.pid_);
+    return *this;
+}
+
+Process::~Process() noexcept {
+    if (handle_) {
+        mach_port_deallocate(mach_task_self(), (mach_port_t)(std::size_t)handle_);
+    }
+}
+
+auto Process::FindPid(char const* name) -> std::uint32_t {
+    if (name) {
+        pid_t pids[4096];
+        int bytes = proc_listpids(PROC_ALL_PIDS, 0, pids, sizeof(pids));
+        int n_proc = bytes / sizeof(pid_t);
+        char pathbuf[PROC_PIDPATHINFO_MAXSIZE] = {};
+        for (auto p = pids; p != pids + n_proc; p++) {
+            if (auto const ret = proc_pidpath(*p, pathbuf, sizeof(pathbuf)); ret > 0) {
+                if (std::string_view{pathbuf, static_cast<std::size_t>(ret)}.ends_with(name)) {
+                    return static_cast<std::uint32_t>(*p);
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+auto Process::FindPidWindow(char const* window) -> std::uint32_t { return 0; }
+
+auto Process::Open(std::uint32_t pid) -> Process {
+    if (mach_port_t task = {}; !task_for_pid(mach_task_self(), pid, &task)) {
+        return Process((void*)(std::uintptr_t)task, pid);
+    }
+    lol_throw_msg("task_for_pid");
+}
+
+// The ASLR slide comes from the executable region backed by the game binary itself,
+// not from whichever region happens to be mapped lowest.
+static auto find_main_image_base(void* handle, std::uint32_t pid) noexcept -> std::optional<PtrStorage> {
+    char exe_path[PROC_PIDPATHINFO_MAXSIZE] = {};
+    if (proc_pidpath(pid, exe_path, sizeof(exe_path)) <= 0) {
+        return std::nullopt;
+    }
+
+    vm_map_offset_t address = 0;
+    for (int i = 0; i < 4096; i++) {
+        vm_map_offset_t vmoffset = address;
+        vm_map_size_t vmsize = {};
+        uint32_t nesting_depth = 0;
+        struct vm_region_submap_info_64 vbr[16] = {};
+        mach_msg_type_number_t vbrcount = 16;
+        if (auto const err = mach_vm_region_recurse((mach_port_t)(uintptr_t)handle,
+                                                    &vmoffset,
+                                                    &vmsize,
+                                                    &nesting_depth,
+                                                    (vm_region_recurse_info_t)&vbr,
+                                                    &vbrcount)) {
+            return std::nullopt;  // ran out of regions
+        }
+
+        // __PAGEZERO also reports the game binary as its file but has no permissions.
+        if (vbr[0].protection != VM_PROT_NONE && (vbr[0].protection & VM_PROT_EXECUTE)) {
+            char region_path[PROC_PIDPATHINFO_MAXSIZE] = {};
+            int const n = proc_regionfilename(pid, vmoffset, region_path, sizeof(region_path));
+            if (n > 0 && std::string_view{region_path, (std::size_t)n} == exe_path) {
+                return (PtrStorage)vmoffset - 0x100000000;
+            }
+        }
+
+        if (vmoffset + vmsize <= address) return std::nullopt;  // overflow guard
+        address = vmoffset + vmsize;
+    }
+    return std::nullopt;  // gave up after too many regions
+}
+
+auto Process::Base() const -> PtrStorage {
+    if (!base_) {
+        auto const found = find_main_image_base(handle_, pid_);
+        if (!found) {
+            lol_throw_msg("Failed to find main image base");
+        }
+        base_ = *found;
+    }
+    return base_;
+}
+
+auto Process::TryBase() const noexcept -> std::optional<PtrStorage> {
+    if (!base_) {
+        auto const found = find_main_image_base(handle_, pid_);
+        if (!found) return std::nullopt;
+        base_ = *found;
+    }
+    return base_;
+}
+
+auto Process::Path() const -> fs::path {
+    lol_trace_func();
+    if (!path_.empty()) return path_;
+    char pathbuf[PROC_PIDPATHINFO_MAXSIZE] = {};
+    if (auto const ret = proc_pidpath(pid_, pathbuf, sizeof(pathbuf)); ret <= 0) {
+        lol_throw_msg("proc_pidpath(pid: {}): {:#x}", pid_, (std::uint32_t)ret);
+    } else {
+        path_ = std::string{pathbuf, pathbuf + ret};
+    }
+    return path_;
+}
+
+auto Process::Dump() const -> std::vector<char> {
+    std::vector<char> buffer = {};
+    auto const path = Path().generic_string();
+    if (auto const file = fopen(path.c_str(), "rb")) {
+        auto const size = std::filesystem::file_size(path);
+        buffer.resize(size);
+        fread(buffer.data(), buffer.size(), 1, file);
+        fclose(file);
+    } else {
+        lol_throw_msg("fopen(path: {}, \"rb\") failed", path.c_str());
+    }
+    return buffer;
+}
+
+auto Process::IsExited() const noexcept -> bool {
+    int p = 0;
+    pid_for_task((mach_port_t)(uintptr_t)handle_, &p);
+    return p < 0;
+}
+
+auto Process::WaitInitialized(uint32_t timeout) const noexcept -> bool { return true; }
+
+auto Process::TryReadMemory(void* address, void* dest, size_t size) const noexcept -> bool {
+    mach_msg_type_number_t orgdata_read = 0;
+    vm_offset_t offset = {};
+    if (auto const err =
+            mach_vm_read((mach_port_t)(uintptr_t)handle_, (mach_vm_address_t)address, size, &offset, &orgdata_read)) {
+        return false;
+    }
+    if (orgdata_read != size) {
+        return false;
+    }
+    memcpy(dest, (void*)offset, orgdata_read);
+    mach_vm_deallocate(mach_task_self(), offset, orgdata_read);
+    return true;
+}
+
+auto Process::ReadMemory(void* address, void* dest, size_t size) const -> void {
+    mach_msg_type_number_t got_size = 0;
+    vm_offset_t offset = {};
+    if (auto const err =
+            mach_vm_read((mach_port_t)(uintptr_t)handle_, (mach_vm_address_t)address, size, &offset, &got_size)) {
+        lol_throw_msg("mach_vm_read: {:#x}", (std::uint32_t)err);
+    }
+    if (got_size != size) {
+        lol_throw_msg("mach_vm_read: got {:#x}", got_size);
+    }
+    memcpy(dest, (void*)offset, got_size);
+    mach_vm_deallocate(mach_task_self(), offset, got_size);
+}
+
+auto Process::WriteMemory(void* address, void const* src, std::size_t sizeBytes) const -> void {
+    if (auto const err =
+            mach_vm_write((mach_port_t)(uintptr_t)handle_, (mach_vm_address_t)address, (vm_offset_t)src, sizeBytes)) {
+        lol_throw_msg("mach_vm_write: {:#x}", (std::uint32_t)err);
+    }
+}
+
+auto Process::MarkMemoryWritable(void* address, std::size_t size) const -> void {
+    if (auto const err = mach_vm_protect((mach_port_t)(uintptr_t)handle_,
+                                         (mach_vm_address_t)address,
+                                         (mach_vm_size_t)size,
+                                         FALSE,
+                                         VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY)) {
+        lol_throw_msg("mach_vm_protect: {:#x}", (std::uint32_t)err);
+    }
+}
+
+auto Process::MarkMemoryExecutable(void* address, std::size_t size) const -> void {
+    if (auto const err = mach_vm_protect((mach_port_t)(uintptr_t)handle_,
+                                         (mach_vm_address_t)address,
+                                         (mach_vm_size_t)size,
+                                         FALSE,
+                                         VM_PROT_READ | VM_PROT_EXECUTE)) {
+        lol_throw_msg("mach_vm_protect: {:#x}", (std::uint32_t)err);
+    }
+}
+
+auto Process::AllocateMemory(size_t size) const -> void* {
+    mach_vm_address_t address = {};
+    if (auto const err = mach_vm_allocate((vm_map_t)(uintptr_t)handle_, &address, size, VM_FLAGS_ANYWHERE)) {
+        lol_throw_msg("mach_vm_allocate: {:#x}", (std::uint32_t)err);
+    }
+    return (void*)address;
+}
+
+// Patcher diagnostics go to stderr, which Zushi already captures and echoes.
+void lol::patcher::patch_log(char const* fmt, ...) noexcept {
+    std::fprintf(stderr, "[patcher] ");
+    va_list args;
+    va_start(args, fmt);
+    std::vfprintf(stderr, fmt, args);
+    va_end(args);
+    std::fputc('\n', stderr);
+    std::fflush(stderr);
+}
+
+// Task currently frozen by Suspend(), so a termination signal can thaw it. If
+// the patcher died in the middle of patching, the game would otherwise stay
+// suspended forever: unlike a ptrace attachment, a suspend count is not
+// released when the process holding it goes away.
+static std::atomic<mach_port_t> g_suspended_task = {};
+
+auto Process::Suspend() const -> void {
+    auto const task = (task_t)(uintptr_t)handle_;
+    if (auto const err = task_suspend(task)) {
+        lol_throw_msg("task_suspend: {:#x}", (std::uint32_t)err);
+    }
+    g_suspended_task.store(task, std::memory_order_release);
+}
+
+auto Process::Resume() const noexcept -> void {
+    auto const task = (task_t)(uintptr_t)handle_;
+    g_suspended_task.store(0, std::memory_order_release);
+    task_resume(task);
+}
+
+void lol::patcher::emergency_resume() noexcept {
+    if (auto const task = g_suspended_task.exchange(0, std::memory_order_acq_rel)) {
+        task_resume(task);
+    }
+}
+
+#endif

@@ -14,6 +14,14 @@ pub fn configure(prefix: &str) -> Result<String, String> {
     ))
 }
 pub fn status(line: &str) -> Option<PatcherStatus> {
+    // DLL diagnostics can arrive on either output stream, including after the
+    // host reports an attached game. Attachment does not prove mods applied.
+    let diagnostic = line.to_ascii_lowercase();
+    if diagnostic.contains("host verification failed") {
+        return Some(PatcherStatus::Error(
+            "The LTK engine refused this launcher. No skins were applied. Changing administrator settings will not resolve this refusal.".into(),
+        ));
+    }
     let mut parts = line.splitn(4, ' ');
     match parts.next()? {
         "status" => {
@@ -53,6 +61,19 @@ mod tests {
             status("status 1.0 failed SetWindowsHookEx failed: 0x00000000"),
             Some(PatcherStatus::Error("League is running as administrator, so the engine must too. Turn on “Run engine as administrator” in Settings → Windows engine, or stop running League as administrator.".into()))
         );
+    }
+    #[test]
+    fn host_verification_refusal_is_an_error_after_attachment() {
+        for line in [
+            "dll 3.4 8892 1 ERROR ltk_patcher_dll::verify: host verification failed, refusing overlay: [VRF00000008] (8892,ltk-manager.exe)",
+            "ERROR ltk_patcher_dll::verify: host verification failed, refusing overlay: [VRF00000008]",
+        ] {
+            let Some(PatcherStatus::Error(message)) = status(line) else {
+                panic!("host refusal must not be ignored");
+            };
+            assert!(message.contains("No skins were applied"));
+        }
+        assert!(status("dll 2.0 8892 1 INFO host verification succeeded").is_none());
     }
     #[test]
     fn maps_real_host_lifecycle_and_preserves_rejections() {

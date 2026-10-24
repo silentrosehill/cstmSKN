@@ -1,7 +1,8 @@
-"""Fetch pinned official LTK files and remove their publisher signature for redistribution.
+"""Build cstmSKN's explicitly derived LTK runtime from pinned upstream binaries.
 
-This is required by the upstream LTK Patcher License, not a patcher modification.
-No upstream authentication, game validation, or hook configuration is changed.
+The launcher-name check is retargeted to cstmSKN.exe, not removed. All other
+executable bytes stay unchanged. Publisher signatures are removed under the LTK
+Patcher License. This does not establish game compatibility.
 """
 from pathlib import Path
 import hashlib
@@ -47,6 +48,52 @@ def remove_publisher_signature(data: bytes) -> bytes:
     struct.pack_into("<I", image, optional+64, 0)  # checksum changed with certificate table
     return bytes(image)
 
+# These offsets are specific to FILES["ltk_patcher_dll.dll"]. The input hash is
+# checked before interpreting them. Unknown releases must never be patched.
+LAUNCHER_NAME_OFFSET = 0x88D77
+LAUNCHER_LENGTH_OFFSET = 0x1CB57
+OLD_LAUNCHER = b"ltk-manager.exe"
+NEW_LAUNCHER = b"cstmSKN.exe"
+
+def retarget_launcher(data: bytes) -> bytes:
+    """Keep verification, but verify our actual launcher identity in our own build."""
+    if hashlib.sha256(data).hexdigest() != FILES["ltk_patcher_dll.dll"]:
+        raise ValueError("Launcher adaptation requires the exact pinned upstream DLL")
+    return _retarget_known_layout(data)
+
+def _retarget_known_layout(data: bytes) -> bytes:
+    # The length instruction is mov r9d, 15 immediately after the RIP-relative
+    # reference to this literal, in the host-verification code. Do not alter the
+    # branch, verification function, WAD checks, hook flags or any other code.
+    name = LAUNCHER_NAME_OFFSET
+    instruction = LAUNCHER_LENGTH_OFFSET
+    if data[name:name + len(OLD_LAUNCHER)] != OLD_LAUNCHER:
+        raise ValueError("Unexpected launcher literal")
+    if data[instruction:instruction + 6] != b"\x41\xb9\x0f\0\0\0":
+        raise ValueError("Unexpected launcher-name length instruction")
+    # Check the LEA really points at the literal in this pinned PE layout.
+    lea = instruction - 12
+    if data[lea:lea + 3] != b"\x4c\x8d\x05":
+        raise ValueError("Unexpected launcher reference")
+    displacement = struct.unpack_from("<i", data, lea + 3)[0]
+    pe = struct.unpack_from("<I", data, 0x3c)[0]
+    count = struct.unpack_from("<H", data, pe + 6)[0]
+    optional_size = struct.unpack_from("<H", data, pe + 20)[0]
+    table = pe + 24 + optional_size
+    def rva(offset):
+        for index in range(count):
+            header = table + index * 40
+            address, size, start = struct.unpack_from("<III", data, header + 12)
+            if start <= offset < start + size:
+                return address + offset - start
+        raise ValueError("Launcher reference is outside PE sections")
+    if rva(lea) + 7 + displacement != rva(name):
+        raise ValueError("Launcher reference does not target the expected literal")
+    image = bytearray(data)
+    image[name:name + len(OLD_LAUNCHER)] = NEW_LAUNCHER.ljust(len(OLD_LAUNCHER), b"\0")
+    struct.pack_into("<I", image, instruction + 2, len(NEW_LAUNCHER))
+    return bytes(image)
+
 def main():
     target = ROOT / "src-tauri/resources/windows"
     target.mkdir(parents=True, exist_ok=True)
@@ -56,13 +103,22 @@ def main():
             original = response.read(16 * 1024 * 1024)
         if hashlib.sha256(original).hexdigest() != expected:
             raise ValueError(f"Pinned upstream checksum mismatch: {name}")
-        output = remove_publisher_signature(original)
+        derived = retarget_launcher(original) if name == "ltk_patcher_dll.dll" else original
+        output = remove_publisher_signature(derived)
+        # Prove that redistribution changed only the two identity fields,
+        # apart from signature/checksum removal. Fail closed on any extra edit.
+        baseline = remove_publisher_signature(original)
+        allowed = set(range(LAUNCHER_NAME_OFFSET, LAUNCHER_NAME_OFFSET + len(OLD_LAUNCHER))) | set(range(LAUNCHER_LENGTH_OFFSET + 2, LAUNCHER_LENGTH_OFFSET + 6)) if name == "ltk_patcher_dll.dll" else set()
+        if len(output) != len(baseline) or any(a != b and i not in allowed for i, (a, b) in enumerate(zip(baseline, output))):
+            raise ValueError("Unexpected modification outside cstmSKN launcher identity")
         (target / name).write_bytes(output)
-        records.append({"file": name, "upstream_sha256": expected, "redistributed_sha256": hashlib.sha256(output).hexdigest(), "signature": "unsigned; upstream publisher signature removed"})
+        records.append({"file": name, "upstream_sha256": expected, "redistributed_sha256": hashlib.sha256(output).hexdigest(), "signature": "unsigned; upstream publisher signature removed", "modifications": ["launcher verification expects cstmSKN.exe instead of ltk-manager.exe; verification remains active"] if name == "ltk_patcher_dll.dll" else []})
     license_file = ROOT / "licenses/LTK-PATCHER-LICENSE.md"
     (target / license_file.name).write_bytes(license_file.read_bytes())
+    for notice in ["LTK-MANAGER-LICENSE.md", "LTK-INTEGRATION-NOTICE.md"]:
+        (target / notice).write_bytes((ROOT / "licenses" / notice).read_bytes())
     (target / "provenance.json").write_text(json.dumps({"project": "LeagueToolkit/ltk-manager", "revision": REVISION, "files": records}, indent=2) + "\n")
-    print("Prepared two pinned Windows engine files without League Toolkit publisher signatures.")
+    print("Prepared the unsigned cstmSKN-derived LTK runtime; launcher verification targets cstmSKN.exe.")
 
 if __name__ == "__main__":
     main()

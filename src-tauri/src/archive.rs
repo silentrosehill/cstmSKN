@@ -96,15 +96,22 @@ pub fn listing(path: &Path) -> Result<String, String> {
 mod tests {
     use super::*;
     use std::io::Write;
-    fn listing_bytes(bytes: &[u8]) -> Result<String, String> {
-        let path = std::env::temp_dir().join(format!(
-            "cstmskn-archive-{}-{}.zip",
+    fn fixture_path() -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        // Clock readings can repeat across tests running at the same time.
+        std::env::temp_dir().join(format!(
+            "cstmskn-archive-{}-{}-{}.zip",
             std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
-        ));
+        ))
+    }
+    fn listing_bytes(bytes: &[u8]) -> Result<String, String> {
+        let path = fixture_path();
         std::fs::write(&path, bytes).unwrap();
         let result = listing(&path);
         std::fs::remove_file(path).unwrap();
@@ -182,14 +189,7 @@ mod tests {
             ("C:/outside", false),
             ("a\\..\\b", false),
         ] {
-            let path = std::env::temp_dir().join(format!(
-                "cstmskn-archive-{}-{}.zip",
-                std::process::id(),
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos()
-            ));
+            let path = fixture_path();
             let mut zip = zip::ZipWriter::new(File::create(&path).unwrap());
             zip.start_file(name, zip::write::SimpleFileOptions::default())
                 .unwrap();

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { getCached, getStale, setCache } from "../lib/cache";
 import { ensureSkinMetadata } from "../lib/skinMetadata";
-import type { Champion, Skin, Chroma, SkinGroup } from "../types";
+import { findSkinForms, type FormInfo } from "../lib/skinForms";
+import type { Champion, Skin, Chroma, SkinForm, SkinGroup } from "../types";
 
 const SKIN_IDS_URL =
   "https://raw.githubusercontent.com/Alban1911/LeagueSkins/main/resources/en/skin_ids.json";
@@ -25,6 +26,28 @@ let chromaInfoCache: Map<number, { colors: string[]; parentId: number }> | null 
 let skinNameToId: Map<string, string> | null = null;
 let skinChampNameToId: Map<string, string> | null = null;
 let indexedFrom: Record<string, string> | null = null;
+
+// Ultimate/Legendary forms by parent skin id and by name, rebuilt when the catalog changes.
+let formsByParent = new Map<string, FormInfo[]>();
+let formsByName = new Map<string, FormInfo>();
+let formsFrom: [Record<string, string> | null, Map<string, string> | null, unknown] = [
+  null,
+  null,
+  null,
+];
+
+function ensureForms(): void {
+  if (!skinIdsCache || !repoZipsCache) return;
+  const [ids, zips, chromas] = formsFrom;
+  if (ids === skinIdsCache && zips === repoZipsCache && chromas === chromaInfoCache) return;
+  formsByParent = findSkinForms(
+    repoZipsCache,
+    skinIdsCache,
+    (id) => chromaInfoCache?.has(id) ?? false
+  );
+  formsByName = new Map([...formsByParent.values()].flat().map((f) => [f.name, f]));
+  formsFrom = [skinIdsCache, repoZipsCache, chromaInfoCache];
+}
 
 function ensureSkinIndexes(): void {
   if (!skinIdsCache) return;
@@ -190,7 +213,7 @@ export function getSkinsGroupedForChampion(
 ): SkinGroup[] {
   const flat = getSkinsForChampion(champion, skinIds);
   if (!chromaInfoCache || chromaInfoCache.size === 0) {
-    return flat.map((s) => ({ base: s, chromas: [] }));
+    return withForms(flat.map((s) => ({ base: s, chromas: [] })));
   }
 
   const byId = new Map<number, Skin>();
@@ -233,12 +256,35 @@ export function getSkinsGroupedForChampion(
   const result = [...groups.values()];
   result.sort((a, b) => a.base.num - b.base.num);
   for (const g of result) g.chromas.sort((a, b) => a.num - b.num);
-  return result;
+  return withForms(result);
+}
+
+function withForms(groups: SkinGroup[]): SkinGroup[] {
+  ensureForms();
+  for (const g of groups) {
+    const forms = formsByParent.get(g.base.id);
+    if (!forms) continue;
+    g.forms = forms.map(
+      (f): SkinForm => ({
+        id: f.id,
+        num: g.base.num,
+        name: f.name,
+        championId: g.base.championId,
+        championName: g.base.championName,
+        parentName: f.parentName,
+        image: f.image,
+      })
+    );
+  }
+  return groups;
 }
 
 export function lookupChromaInfo(
   skinName: string
-): { colors: string[]; parentName: string } | null {
+): { colors: string[]; parentName: string; image?: string } | null {
+  ensureForms();
+  const form = formsByName.get(skinName);
+  if (form) return { colors: [], parentName: form.parentName, image: form.image };
   if (!skinIdsCache || !chromaInfoCache) return null;
   ensureSkinIndexes();
 
@@ -279,7 +325,11 @@ export function lookupSplashNum(skinName: string): number | null {
   ensureSkinIndexes();
 
   const foundId = skinNameToId!.get(skinName);
-  if (foundId === undefined) return null;
+  if (foundId === undefined) {
+    ensureForms();
+    const form = formsByName.get(skinName);
+    return form ? lookupSplashNum(form.parentName) : null;
+  }
 
   const champKey = Math.floor(parseInt(foundId, 10) / 1000);
 

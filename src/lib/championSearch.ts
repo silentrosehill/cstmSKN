@@ -87,7 +87,10 @@ export function galleryTarget(
 ): { index: number; chromaId: string | null } | null {
   if (!skinId) return null;
   const index = groups.findIndex(
-    (group) => group.base.id === skinId || group.chromas.some((chroma) => chroma.id === skinId)
+    (group) =>
+      group.base.id === skinId ||
+      group.chromas.some((chroma) => chroma.id === skinId) ||
+      !!group.forms?.some((form) => form.id === skinId)
   );
   if (index < 0) return null;
   return { index, chromaId: groups[index].base.id === skinId ? null : skinId };

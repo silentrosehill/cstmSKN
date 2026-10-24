@@ -4,13 +4,15 @@ export interface LibraryGroup {
   name: string;
   champion: string;
   base: DownloadedSkin | null;
-  chromas: { download: DownloadedSkin; colors: string[] }[];
+  chromas: { download: DownloadedSkin; colors: string[]; image?: string }[];
 }
 export interface ChampionDeck {
   champion: string;
   groups: LibraryGroup[];
 }
-export type ChromaLookup = (name: string) => { parentName: string; colors: string[] } | null;
+export type ChromaLookup = (
+  name: string
+) => { parentName: string; colors: string[]; image?: string } | null;
 
 export function groupLibrarySkins(
   downloads: DownloadedSkin[],
@@ -31,7 +33,7 @@ export function groupLibrarySkins(
       base: null,
       chromas: [],
     };
-    if (chroma) group.chromas.push({ download, colors: chroma.colors });
+    if (chroma) group.chromas.push({ download, colors: chroma.colors, image: chroma.image });
     else group.base = download;
     groups.set(name, group);
     champions.set(download.champion_name, groups);

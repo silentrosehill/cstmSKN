@@ -33,9 +33,16 @@ export interface Chroma extends Skin {
   colors: string[];
 }
 
+/** An Ultimate/Legendary skin's alternate form, picked like a chroma. */
+export interface SkinForm extends Skin {
+  parentName: string;
+  image: string;
+}
+
 export interface SkinGroup {
   base: Skin;
   chromas: Chroma[];
+  forms?: SkinForm[];
 }
 
 export interface DownloadedSkin {

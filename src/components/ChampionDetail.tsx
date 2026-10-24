@@ -8,6 +8,7 @@ import {
   Download,
   Loader2,
   Palette,
+  Layers,
   ImageOff,
   Sparkles,
   Star,
@@ -104,7 +105,10 @@ export default function ChampionDetail({
   const mounted = useRef(true);
   const initialized = useRef(false);
   const group = groups[index];
-  const skin = group?.chromas.find((c) => c.id === chromaId) ?? group?.base;
+  const skin =
+    group?.chromas.find((c) => c.id === chromaId) ??
+    group?.forms?.find((f) => f.id === chromaId) ??
+    group?.base;
   const downloaded = skin ? isDownloaded(skin.championName, skin.name) : false;
   const selected = !!skin && selection[skin.championName] === skin.name;
   const downloadUrl = skin ? skinDownloadUrl(skin) : null;
@@ -135,12 +139,16 @@ export default function ChampionDetail({
     const savedIndex = groups.findIndex(
       (g) =>
         selection[g.base.championName] === g.base.name ||
-        g.chromas.some((c) => selection[c.championName] === c.name)
+        g.chromas.some((c) => selection[c.championName] === c.name) ||
+        !!g.forms?.some((f) => selection[f.championName] === f.name)
     );
     if (savedIndex >= 0) {
       setIndex(savedIndex);
       const g = groups[savedIndex];
-      setChromaId(g.chromas.find((c) => selection[c.championName] === c.name)?.id ?? null);
+      setChromaId(
+        [...g.chromas, ...(g.forms ?? [])].find((c) => selection[c.championName] === c.name)?.id ??
+          null
+      );
     }
   }, [groups, selection, initialSkinId, loading]);
   function navigate(delta: number) {
@@ -331,6 +339,48 @@ export default function ChampionDetail({
                       }}
                     >
                       {isDownloaded(c.championName, c.name) && <Check size={10} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!!group.forms?.length && (
+              <div className="gallery-chromas gallery-forms">
+                <div>
+                  <Layers size={14} />
+                  <strong>Forms</strong>
+                  <span>{group.forms.length + 1}</span>
+                </div>
+                <div className="gallery-form-swatches">
+                  <button
+                    className={!chromaId ? "chosen" : ""}
+                    onClick={() => setChromaId(null)}
+                    aria-pressed={!chromaId}
+                    title="Base form"
+                    aria-label="Base form"
+                  >
+                    <img src={splashUrl(group.base.championId, getSplashNum(group.base))} alt="" />
+                  </button>
+                  {group.forms.map((f) => (
+                    <button
+                      key={f.id}
+                      aria-label={f.name}
+                      title={`${f.name}${isDownloaded(f.championName, f.name) ? " · Downloaded" : ""}`}
+                      aria-pressed={chromaId === f.id}
+                      onClick={() => setChromaId(f.id)}
+                      className={chromaId === f.id ? "chosen" : ""}
+                    >
+                      <img
+                        src={f.image}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                      />
+                      {isDownloaded(f.championName, f.name) && (
+                        <span className="form-downloaded">
+                          <Check size={9} />
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>

@@ -156,3 +156,43 @@
   margin-bottom: -4px;
 }
 
+/* Ultimate/Legendary skin forms: picture swatches, picked like chromas. */
+.gallery-forms .gallery-form-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 3px;
+  margin-top: 16px;
+}
+.gallery-form-swatches button {
+  position: relative;
+  width: 38px;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--glass-line);
+  border-radius: 9px;
+  background: var(--material-fill);
+  box-shadow: 0 2px 4px #0003;
+}
+.gallery-form-swatches button img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 15%;
+}
+.gallery-form-swatches button.chosen {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.gallery-form-swatches .form-downloaded {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #73d39f;
+  color: #0e392b;
+}

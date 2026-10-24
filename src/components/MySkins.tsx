@@ -17,6 +17,7 @@ import {
   lookupSplashNum,
   lookupChromaInfo,
   ensureChromaInfo,
+  ensureRepoZips,
   ensureSkinIds,
 } from "../hooks/useSkinData";
 import {
@@ -246,7 +247,11 @@ function ChampionSkinDeck({
                 </span>
               )}
               {depth === 0 && current.skin_name !== front.name && (
-                <span className="skin-deck-chroma-badge">Chroma</span>
+                <span className="skin-deck-chroma-badge">
+                  {front.chromas.find((c) => c.download.skin_name === current.skin_name)?.image
+                    ? "Form"
+                    : "Chroma"}
+                </span>
               )}
             </button>
           );
@@ -312,8 +317,9 @@ function ChampionSkinDeck({
               disabled={busy}
               className={current.skin_name === chroma.download.skin_name ? "current" : ""}
               style={{
-                background:
-                  chroma.colors.length > 1
+                background: chroma.image
+                  ? `center 12% / cover no-repeat url("${chroma.image}"), var(--material-fill)`
+                  : chroma.colors.length > 1
                     ? `linear-gradient(135deg,${chroma.colors[0]} 50%,${chroma.colors[1]} 50%)`
                     : (chroma.colors[0] ?? "var(--accent)"),
               }}
@@ -366,7 +372,8 @@ export default function MySkins({
   const [search, setSearch] = useState("");
   useEffect(() => {
     let live = true;
-    void Promise.all([ensureSkinIds(), ensureChromaInfo()])
+    // The catalog tree is what tells Ultimate skin forms apart from separate skins.
+    void Promise.all([ensureSkinIds(), ensureChromaInfo(), ensureRepoZips()])
       .then(() => {
         if (live) setMetadataReady(true);
       })

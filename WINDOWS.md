@@ -9,6 +9,31 @@ part of this build. The macOS engine is unchanged.
 **In-game compatibility is not yet verified.** Windows build and protocol tests
 cannot prove that skins apply in a real game.
 
+**Known limitation: Windows code-integrity protection can block this unsigned
+runtime.** A reported `Bad Image` error `0xC0E90002` means a system integrity
+policy rejected the DLL. It does not establish a corrupt Windows installation.
+The official LTK Manager working on the same PC does not prove this derived,
+unsigned runtime is trusted. Keep Windows protections enabled. A release signed
+with a trusted Windows code-signing certificate is needed for these machines;
+running as administrator or downloading the same unsigned build again does not
+resolve signing. To identify the blocking policy and file, inspect Event Viewer
+→ Applications and Services Logs → Microsoft → Windows → CodeIntegrity →
+Operational. See [Microsoft's signing guidance](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control).
+
+The app waits for the host's startup acknowledgement before showing “Waiting for
+game,” reports recognized code-integrity failures, and stops a host that never
+finishes starting. Loader errors are returned to the host instead of opening a
+blocking system modal; this changes error reporting only, not Windows security.
+
+Hook attachment failures keep the numeric `SetWindowsHookEx` code. Only an
+access-denied code suggests checking relative engine/game permissions; other
+codes do not claim League is running as administrator. Windows engine Settings
+shows the GUI's actual token. The normal Explorer relaunch can remove the GUI's
+elevation, so a Run as administrator launch is carried forward as a request for
+the engine's normal UAC prompt when Apply starts it. An already elevated GUI
+passes its permissions directly to the engine. These changes do not resolve
+unsigned-code trust or prove a game hook succeeds.
+
 ## What changed
 
 The previous preview could attach to League and then silently fail when the DLL
@@ -38,7 +63,7 @@ Vanguard bypass.
 
 1. Extract the candidate's portable ZIP and keep the `ltk` folder beside
    `cstmSKN.exe`, or install the candidate installer. Use the candidate artifacts,
-   not the older published 1.0.2 preview.
+   keeping the engine files that shipped with that build.
 2. Close LTK Manager and any other patcher so two engines cannot compete. Open
    cstmSKN from its normal shortcut or executable.
 3. Confirm the League installation. Import the same known-working custom
@@ -90,3 +115,7 @@ npm run tauri -- build --bundles nsis
 The Windows workflow uploads the installer, portable ZIP, notices and runtime
 provenance. Preparing engine resources is reproducible from their pinned hashes;
 unknown upstream releases fail closed rather than receiving a guessed patch.
+It also runs `scripts/test-windows-engine-load.ps1` against the portable engine:
+the real DLL must load, scanning must be acknowledged, and Stop must exit
+cleanly. No game is launched. Passing on a hosted runner does not verify loading
+under the policies of every Windows PC or establish in-game compatibility.

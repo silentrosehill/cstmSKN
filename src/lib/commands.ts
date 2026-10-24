@@ -135,6 +135,8 @@ export async function listReleases(): Promise<ReleaseInfo[]> {
 export interface WindowsElevation {
   optIn: boolean;
   leagueRunsAsAdmin: boolean;
+  appIsElevated: boolean;
+  requestedAtLaunch: boolean;
 }
 
 export async function getWindowsElevation(): Promise<WindowsElevation> {

@@ -1,5 +1,37 @@
 //! Minimal LTK host protocol adapter. Default host validation remains enabled.
 use crate::state::PatcherStatus;
+
+/// Windows loader failures are distinct from game attachment failures. Keep
+/// these codes unsigned: process exit codes arrive as signed i32 values in Rust.
+pub fn loader_error(code: u32) -> Option<String> {
+    match code {
+        0xC0E90002 | 0xC0000428 | 577 | 1260 => Some(format!(
+            "Windows blocked the LTK engine under its code-integrity policy (0x{code:08X}). No skins were applied. This preview is unsigned; a trusted signed release is needed. Keep Windows protections enabled."
+        )),
+        _ => None,
+    }
+}
+
+pub fn host_exit_error(code: Option<i32>) -> String {
+    if let Some(message) = code.and_then(|code| loader_error(code as u32)) {
+        return message;
+    }
+    match code {
+        Some(code) => format!(
+            "LTK host exited (0x{:08X}). Check patcher diagnostics.",
+            code as u32
+        ),
+        None => "LTK host exited unexpectedly. Check patcher diagnostics.".into(),
+    }
+}
+
+pub fn hook_target_pid(line: &str) -> Option<u32> {
+    if !line.contains("hook install failed") {
+        return None;
+    }
+    line.split_whitespace()
+        .find_map(|word| word.strip_prefix("pid=")?.parse().ok())
+}
 pub fn configure(prefix: &str) -> Result<String, String> {
     if prefix.is_empty() || prefix.chars().any(char::is_control) {
         return Err("Invalid overlay directory".into());
@@ -17,6 +49,16 @@ pub fn status(line: &str) -> Option<PatcherStatus> {
     // DLL diagnostics can arrive on either output stream, including after the
     // host reports an attached game. Attachment does not prove mods applied.
     let diagnostic = line.to_ascii_lowercase();
+    for code in [0xC0E90002, 0xC0000428] {
+        if diagnostic.contains(&format!("0x{code:08x}")) {
+            return loader_error(code).map(PatcherStatus::Error);
+        }
+    }
+    if diagnostic.contains("failed to load hook dll") {
+        return Some(PatcherStatus::Error(
+            "Windows could not load the LTK engine DLL. No skins were applied. This preview is unsigned and may be blocked by Windows security. Check the CodeIntegrity event log for the reason; keep Windows protections enabled.".into(),
+        ));
+    }
     if diagnostic.contains("host verification failed") {
         return Some(PatcherStatus::Error(
             "The LTK engine refused this launcher. No skins were applied. Changing administrator settings will not resolve this refusal.".into(),
@@ -34,7 +76,7 @@ pub fn status(line: &str) -> Option<PatcherStatus> {
                 "waiting" => Some(PatcherStatus::InGame),
                 "exited" => Some(PatcherStatus::GameExited),
                 "failed" if message.contains("SetWindowsHookEx") => Some(PatcherStatus::Error(
-                    "League is running as administrator, so the engine must too. Turn on “Run engine as administrator” in Settings → Windows engine, or stop running League as administrator.".into(),
+                    hook_failure(message),
                 )),
                 "failed" => Some(PatcherStatus::Error(format!("LTK: {message}"))),
                 _ => None,
@@ -45,9 +87,58 @@ pub fn status(line: &str) -> Option<PatcherStatus> {
         _ => None,
     }
 }
+
+fn hook_failure(message: &str) -> String {
+    let code = message
+        .split("0x")
+        .nth(1)
+        .and_then(|hex| hex.split(|c: char| !c.is_ascii_hexdigit()).next())
+        .and_then(|hex| u32::from_str_radix(hex, 16).ok());
+    match code {
+        Some(5) => format!("LTK game hook was denied access: {message}. If League runs elevated, enable engine administrator mode. If the engine is already elevated, check Windows security diagnostics."),
+        Some(0) => format!("LTK game hook failed: {message}. The engine supplied no specific Windows error. Copy patcher diagnostics to investigate."),
+        _ => format!("LTK game hook failed: {message}. Check patcher diagnostics."),
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn hook_target_context_uses_only_the_reported_process_id() {
+        assert_eq!(
+            hook_target_pid("1s ERROR worker: hook install failed tid=4544 pid=9220 error=0"),
+            Some(9220)
+        );
+        for line in [
+            "normal pid=9220",
+            "hook install failed pid=bad",
+            "hook install failed tid=4544",
+            "hook install failed pid=4294967296",
+        ] {
+            assert_eq!(hook_target_pid(line), None);
+        }
+    }
+    #[test]
+    fn policy_failures_are_not_mistaken_for_missing_game_or_bad_archives() {
+        let exit = host_exit_error(Some(0xC0E90002_u32 as i32));
+        assert!(exit.contains("Windows blocked"));
+        assert!(exit.contains("0xC0E90002"));
+        assert!(exit.contains("No skins were applied"));
+        for code in [0xC0000428, 577, 1260] {
+            assert!(loader_error(code)
+                .unwrap()
+                .contains("code-integrity policy"));
+        }
+        assert!(loader_error(193).is_none()); // Bad executable format is not proof of policy blocking.
+        assert!(!host_exit_error(Some(1)).contains("Windows blocked"));
+        for line in [
+            "error 0.1 failed to load hook dll",
+            "error 0.1 LoadLibrary failed: 0xc0e90002",
+            "status 0.1 failed 0xC0000428",
+        ] {
+            assert!(matches!(status(line), Some(PatcherStatus::Error(_))));
+        }
+    }
     #[test]
     fn spaced_prefix_is_unquoted_and_never_injects_protocol_commands() {
         assert_eq!(configure("C:\\Users\\Name With Spaces\\overlay").unwrap(), "config loglevel 16\nconfig flags 0\nconfig prefix C:\\Users\\Name With Spaces\\overlay\\\nstart scan\n");
@@ -56,11 +147,23 @@ mod tests {
         }
     }
     #[test]
-    fn hook_failure_explains_required_elevation() {
-        assert_eq!(
-            status("status 1.0 failed SetWindowsHookEx failed: 0x00000000"),
-            Some(PatcherStatus::Error("League is running as administrator, so the engine must too. Turn on “Run engine as administrator” in Settings → Windows engine, or stop running League as administrator.".into()))
-        );
+    fn hook_failure_keeps_the_code_without_inventing_a_permissions_mismatch() {
+        for code in ["0x00000000", "0x000005A4", "unspecified"] {
+            let Some(PatcherStatus::Error(message)) = status(&format!(
+                "status 1.0 failed SetWindowsHookEx failed: {code}"
+            )) else {
+                panic!("hook failure must be visible")
+            };
+            assert!(message.contains(code));
+            assert!(!message.contains("administrator"));
+        }
+        let Some(PatcherStatus::Error(denied)) =
+            status("status 1.0 failed SetWindowsHookEx failed: 0x00000005")
+        else {
+            panic!("missing denial")
+        };
+        assert!(denied.contains("If League runs elevated"));
+        assert!(denied.contains("already elevated"));
     }
     #[test]
     fn host_verification_refusal_is_an_error_after_attachment() {

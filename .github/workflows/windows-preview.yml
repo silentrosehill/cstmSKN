@@ -1,7 +1,7 @@
 name: Windows preview
 on:
   push:
-    branches: [main, ltk-integration]
+    branches: [main, ltk-integration, windows-engine-loading]
   workflow_dispatch:
 concurrency:
   group: windows-preview-${{ github.ref }}
@@ -63,6 +63,7 @@ jobs:
           Copy-Item src-tauri/target/release/cstmSKN.exe portable/cstmSKN/
           Copy-Item src-tauri/resources/windows/* portable/cstmSKN/ltk/
           Copy-Item WINDOWS.md, licenses/LTK-PATCHER-LICENSE.md portable/cstmSKN/
+          ./scripts/test-windows-engine-load.ps1 -EngineDirectory portable/cstmSKN/ltk
           $portableExe = (Resolve-Path portable/cstmSKN/cstmSKN.exe).Path
           $stub = Start-Process $portableExe -PassThru
           Start-Sleep -Seconds 10

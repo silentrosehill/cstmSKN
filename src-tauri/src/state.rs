@@ -16,6 +16,7 @@ pub enum PatcherStatus {
     Idle,
     Importing,
     BuildingOverlay,
+    StartingEngine,
     WaitingForGame,
     FoundGame,
     Scanning,

@@ -62,9 +62,15 @@ export default function WindowsEngineCard({
           <div className="software-update-title">
             <h3>Run engine as administrator</h3>
             <p>
-              Asks for admin permission each time the patcher starts; needed when League runs as
-              administrator.
+              Requests engine elevation when needed. An already elevated app passes its permissions
+              to the engine.
             </p>
+            {elevation && (
+              <p>cstmSKN is running as {elevation.appIsElevated ? "administrator" : "a standard user"}.</p>
+            )}
+            {elevation?.requestedAtLaunch && !elevation.appIsElevated && (
+              <p>Your administrator launch was retained. The engine will request UAC permission when started.</p>
+            )}
             {elevation?.leagueRunsAsAdmin && (
               <p>League is set to run as administrator, so this is used automatically.</p>
             )}

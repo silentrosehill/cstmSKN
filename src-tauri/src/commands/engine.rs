@@ -16,6 +16,8 @@ pub struct EngineInfo {
 pub struct ElevationInfo {
     opt_in: bool,
     league_runs_as_admin: bool,
+    app_is_elevated: bool,
+    requested_at_launch: bool,
 }
 fn elevation_preference(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(preference(app)?.with_file_name("windows-engine-elevate.json"))
@@ -61,25 +63,33 @@ fn league_runs_as_admin() -> bool {
     false
 }
 #[cfg(target_os = "windows")]
-fn app_is_elevated() -> bool {
-    #[link(name = "shell32")]
-    extern "system" {
-        fn IsUserAnAdmin() -> i32;
-    }
-    unsafe { IsUserAnAdmin() != 0 }
+pub(super) fn app_is_elevated() -> bool {
+    crate::windows_shell::is_elevated()
 }
 #[cfg(not(target_os = "windows"))]
-fn app_is_elevated() -> bool {
+pub(super) fn app_is_elevated() -> bool {
     false
 }
+fn requested_at_launch() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        crate::windows_shell::engine_elevation_requested()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}
 pub(super) fn should_elevate(app: &AppHandle) -> bool {
-    !app_is_elevated() && (elevation_opt_in(app) || league_runs_as_admin())
+    !app_is_elevated() && (elevation_opt_in(app) || requested_at_launch() || league_runs_as_admin())
 }
 #[tauri::command]
 pub fn get_windows_elevation(app: AppHandle) -> ElevationInfo {
     ElevationInfo {
         opt_in: elevation_opt_in(&app),
         league_runs_as_admin: league_runs_as_admin(),
+        app_is_elevated: app_is_elevated(),
+        requested_at_launch: requested_at_launch(),
     }
 }
 #[tauri::command]

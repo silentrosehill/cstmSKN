@@ -376,11 +376,8 @@ pub fn run() {
 
         adopt_user_home();
     }
-    let builder = tauri::Builder::default();
-    #[cfg(not(target_os = "windows"))]
-    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-
-    builder
+    tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
@@ -432,6 +429,7 @@ pub fn run() {
             commands::customs::clear_all_customs,
             commands::customs::get_customs_dir_size,
             commands::open_url,
+            commands::install_kind,
             commands::releases::list_releases,
         ])
         .build(tauri::generate_context!())

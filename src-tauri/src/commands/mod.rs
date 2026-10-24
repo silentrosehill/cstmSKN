@@ -63,6 +63,20 @@ pub fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+/// "installed" when the app came from its installer (which an update can replace),
+/// "portable" for the Windows zip, which has no uninstaller next to it.
+#[tauri::command]
+pub fn install_kind() -> &'static str {
+    let installer = std::env::current_exe()
+        .ok()
+        .and_then(|exe| Some(exe.parent()?.join("uninstall.exe").is_file()));
+    if cfg!(target_os = "windows") && installer == Some(false) {
+        "portable"
+    } else {
+        "installed"
+    }
+}
+
 /// Windows PowerShell from the system folder, never a same-named file next to the app.
 #[cfg(target_os = "windows")]
 pub(crate) fn powershell() -> std::path::PathBuf {

@@ -128,6 +128,11 @@ export async function openUrl(url: string): Promise<void> {
   return invoke("open_url", { url });
 }
 
+/** "portable" for the Windows zip build, which can't update itself. */
+export async function installKind(): Promise<"installed" | "portable"> {
+  return invoke<"installed" | "portable">("install_kind");
+}
+
 export async function listReleases(): Promise<ReleaseInfo[]> {
   return invoke<ReleaseInfo[]>("list_releases");
 }

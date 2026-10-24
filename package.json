@@ -9,7 +9,8 @@
     "build": "tsc && vite build",
     "tauri": "tauri",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "release:mac": "node scripts/prepare-release.mjs"
+    "release:mac": "node scripts/prepare-release.mjs",
+    "release:windows": "node scripts/release-windows-update.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

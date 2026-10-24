@@ -41,5 +41,15 @@
         "displayLanguageSelector": false
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://raw.githubusercontent.com/silentrosehill/cstmSKN/main/updates/windows.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

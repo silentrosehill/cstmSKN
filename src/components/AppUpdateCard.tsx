@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { ArrowDownToLine, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import type { AppUpdates } from "../hooks/useAppUpdates";
-import { openUrl } from "../lib/commands";
+import { installKind, openUrl } from "../lib/commands";
 import { isWindows, useWindowsUpdate, windowsVersion } from "../hooks/useWindowsUpdate";
 import { version } from "../../package.json";
 import SystemIcon from "./SystemIcon";
@@ -14,7 +15,15 @@ export default function AppUpdateCard({
   blockedReason: string | null;
 }) {
   const { state } = updates;
-  if (isWindows) return <WindowsUpdateCard />;
+  // The installed Windows app updates itself like the Mac one; the portable zip links to GitHub.
+  const [portable, setPortable] = useState(isWindows);
+  useEffect(() => {
+    if (isWindows && native)
+      void installKind()
+        .then((kind) => setPortable(kind === "portable"))
+        .catch(() => {});
+  }, [native]);
+  if (portable) return <WindowsUpdateCard />;
   const available = state.stage === "available";
   return (
     <section className="software-update" aria-label="Software Update">

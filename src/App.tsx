@@ -117,6 +117,7 @@ export default function App() {
   );
   const [catalogSearch, setCatalogSearch] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [updateNotice, setUpdateNotice] = useState<string | null>(null);
   const windowsUpdate = useWindowsUpdate();
   // Windows preview: look for a newer build once per launch, after setup, and mention it.
   const updateChecked = useRef(false);
@@ -125,7 +126,7 @@ export default function App() {
     updateChecked.current = true;
     void windowsUpdate.check().then((state) => {
       if (state.stage === "available")
-        setToastMessage(
+        setUpdateNotice(
           `cstmSKN ${state.update.version} is available. Open Settings → Software Update to download it.`
         );
     });
@@ -684,6 +685,14 @@ export default function App() {
             dl.clearError();
             customs.clearError();
           }}
+        />
+      )}
+      {updateNotice && !toastMessage && !dl.error && (
+        <Toast
+          message={updateNotice}
+          tone="info"
+          duration={10000}
+          onClose={() => setUpdateNotice(null)}
         />
       )}
       {native && status !== "game-detected" && (

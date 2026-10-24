@@ -5,9 +5,11 @@ interface ToastProps {
   message: string;
   onClose: () => void;
   duration?: number;
+  /** "info" uses the accent color instead of the error color. */
+  tone?: "error" | "info";
 }
 
-export default function Toast({ message, onClose, duration = 4000 }: ToastProps) {
+export default function Toast({ message, onClose, duration = 4000, tone = "error" }: ToastProps) {
   const [visible, setVisible] = useState(false);
 
   const close = useRef(onClose);
@@ -30,7 +32,8 @@ export default function Toast({ message, onClose, duration = 4000 }: ToastProps)
 
   return (
     <div
-      role="alert"
+      role={tone === "info" ? "status" : "alert"}
+      style={tone === "info" ? { borderLeftColor: "var(--accent)" } : undefined}
       className={[
         "fixed top-0 right-5 z-50",
         "flex items-center gap-3 rounded-lg py-3 pr-3 pl-4",

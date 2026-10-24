@@ -1,9 +1,13 @@
 export const CHANGELOG = [
-  { version: "0.2.0-alpha.1", title: "Hello, Windows", changes: [
-    "The first Windows 11 x64 preview, with the same galleries, Library, and Favorites.",
-    "Windows game detection, remembered installation folders, and custom imports.",
-    "Mica styling and a familiar Windows installer. Preview updates are available on GitHub."
-  ] },
+  {
+    version: "0.2.0-alpha.1",
+    title: "Hello, Windows",
+    changes: [
+      "The first Windows 11 x64 preview, with the same galleries, Library, and Favorites.",
+      "Windows game detection, remembered installation folders, and custom imports.",
+      "Mica styling and a familiar Windows installer. Preview updates are available on GitHub.",
+    ],
+  },
   {
     version: "0.1.24",
     title: "A smoother, safer cstmSKN",

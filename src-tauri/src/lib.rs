@@ -326,6 +326,8 @@ pub fn run() {
         .manage(Arc::new(Mutex::new(AppState::default())))
         .invoke_handler(tauri::generate_handler![
             commands::appearance::set_sidebar_glass,
+            commands::engine::get_windows_engine,
+            commands::engine::set_windows_engine,
             commands::game_path::detect_game_path,
             commands::game_path::validate_game_path,
             commands::game_path::set_game_path,

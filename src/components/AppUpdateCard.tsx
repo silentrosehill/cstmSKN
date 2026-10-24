@@ -13,11 +13,28 @@ export default function AppUpdateCard({
   blockedReason: string | null;
 }) {
   const { state } = updates;
-  if (/Win/.test(navigator.platform)) return <section className="software-update" aria-label="Software Update">
-    <div className="software-update-row"><div className="software-update-title"><h2>Software Update</h2><p>cstmSKN {version} · Windows preview</p></div>
-      <button className="quiet-button" onClick={() => void openUrl("https://github.com/silentrosehill/cstmSKN/releases/tag/v0.2.0-alpha.1").catch(() => {})}>View Windows releases</button></div>
-    <div className="software-update-status"><p>Install preview updates from GitHub. Your library stays on this PC.</p></div>
-  </section>;
+  if (/Win/.test(navigator.platform))
+    return (
+      <section className="software-update" aria-label="Software Update">
+        <div className="software-update-row">
+          <div className="software-update-title">
+            <h2>Software Update</h2>
+            <p>cstmSKN {version} · Windows preview</p>
+          </div>
+          <button
+            className="quiet-button"
+            onClick={() =>
+              void openUrl("https://github.com/silentrosehill/cstmSKN/releases").catch(() => {})
+            }
+          >
+            View Windows releases
+          </button>
+        </div>
+        <div className="software-update-status">
+          <p>Install preview updates from GitHub. Your library stays on this PC.</p>
+        </div>
+      </section>
+    );
   const available = state.stage === "available";
   return (
     <section className="software-update" aria-label="Software Update">

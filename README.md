@@ -6,6 +6,8 @@ I DONT TAKE CREDIT FOR ANYTHING HERE, THIS VERSION IS BASED, BUILT AND MODIFIED 
 
 [Download the latest release](https://github.com/silentrosehill/cstmSKN/releases/latest)
 
+**Windows 11 x64 preview:** this branch adds the LeagueToolkit backend. See [WINDOWS.md](WINDOWS.md) for the installer, test steps, licensing, and limitations. The stable macOS build remains on the main branch.
+
 ## Screenshots
 
 <table>

@@ -33,23 +33,9 @@ fn base(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(p)
 }
 fn resources(app: &AppHandle) -> Result<PathBuf, String> {
-    let packaged = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?
-        .join("ltk");
-    if packaged.join("ltk_patcher_host.exe").is_file() {
-        return Ok(packaged);
-    }
-    #[cfg(debug_assertions)]
-    {
-        return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/windows"));
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        Ok(packaged)
-    }
+    super::engine::folder(app)
 }
+
 fn log(path: &Path, message: &str) {
     static LOCK: Mutex<()> = Mutex::new(());
     let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -78,7 +64,13 @@ pub fn shutdown() {
     let _ = stop_host();
 }
 fn stop_host() -> Result<(), String> {
+    stop_host_for(None)
+}
+fn stop_host_for(generation: Option<u64>) -> Result<(), String> {
     let mut slot = session().lock().map_err(|e| e.to_string())?;
+    if generation.is_some_and(|g| slot.as_ref().is_none_or(|s| s.generation != g)) {
+        return Ok(());
+    }
     if let Some(mut session) = slot.take() {
         if let Some(mut stdin) = session.child.stdin.take() {
             let _ = writeln!(stdin, "stop");
@@ -291,7 +283,16 @@ fn start(
                         log(&output_log, &line);
                         if let Some(next) = crate::ltk_protocol::status(&line) {
                             let exited = next == PatcherStatus::GameExited;
+                            let failed = matches!(next, PatcherStatus::Error(_));
                             update(&output_state, generation, next);
+                            if failed {
+                                let _ = stop_host_for(Some(generation));
+                                if let Ok(mut state) = output_state.lock() {
+                                    if state.patcher_gen == generation {
+                                        state.patcher_pid = None;
+                                    }
+                                }
+                            }
                             if exited && current(&output_state, generation) {
                                 if let Ok(mut slot) = session().lock() {
                                     if let Some(active) =
@@ -522,4 +523,30 @@ pub async fn get_patcher_health(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn raw_wad_wrapper_keeps_bytes_and_metadata_inside_a_fantome() {
+        use std::io::Read;
+        let root = std::env::temp_dir().join(format!("cstm-wad-fixture-{}", std::process::id()));
+        fs::create_dir_all(root.join("mod folder")).unwrap();
+        let original = root.join("mod folder/Ahri.wad.client");
+        fs::write(&original, b"RW fixture contents").unwrap();
+        let wrapped = package(&original, &root.join("staging"), 0).unwrap();
+        let listing = crate::archive::listing(&wrapped).unwrap();
+        assert!(listing.contains("META/info.json"));
+        assert!(listing.contains("WAD/Ahri.wad.client"));
+        let mut zip = zip::ZipArchive::new(fs::File::open(&wrapped).unwrap()).unwrap();
+        let mut content = Vec::new();
+        zip.by_name("WAD/Ahri.wad.client")
+            .unwrap()
+            .read_to_end(&mut content)
+            .unwrap();
+        assert_eq!(content, b"RW fixture contents");
+        drop(zip);
+        fs::remove_dir_all(root).unwrap();
+    }
 }

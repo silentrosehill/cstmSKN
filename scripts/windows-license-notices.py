@@ -19,7 +19,7 @@ def texts(folder):
     return result
 
 def main():
-    data = json.loads(subprocess.check_output(["cargo", "metadata", "--manifest-path", str(ROOT / "src-tauri/Cargo.toml"), "--format-version", "1", "--filter-platform", "x86_64-pc-windows-msvc", "--locked"], text=True))
+    data = json.loads(subprocess.check_output(["cargo", "metadata", "--manifest-path", str(ROOT / "src-tauri/Cargo.toml"), "--format-version", "1", "--filter-platform", "x86_64-pc-windows-msvc", "--locked"], text=True, encoding="utf-8"))
     ids = {node["id"] for node in data["resolve"]["nodes"]}
     notices = ["# cstmSKN Windows third-party notices\n", "The following notices come from the resolved build graph. Some dependencies are build tools rather than runtime components. The LTK binaries are covered separately by LTK-PATCHER-LICENSE.md.\n"]
     manifest = []

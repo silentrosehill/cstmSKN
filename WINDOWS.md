@@ -6,12 +6,13 @@ This branch ports cstmSKN to Windows 11 x64 with the LeagueToolkit overlay build
 
 1. Download `cstmSKN-Windows-x64-setup.exe` from this project's Windows preview release. Install it for your user account.
 2. Open cstmSKN normally. Do not run it or the League client as administrator. Windows 11's WebView2 runtime is used by the interface.
-3. Confirm the detected League installation, or choose the League folder or its `Game` subfolder. The choice is remembered.
-4. First import one known-working original custom `.fantome` mod, choose it, and click Apply selection before launching a fresh Practice Tool match.
-5. Check that the status changes from Waiting for game to In game, and that the mod appears. Stop should return the app to Ready.
-6. Try Favorites, the Library decks, a second skin for the same champion, custom voice/map imports, and a second fresh match without restarting cstmSKN.
+3. If LTK Manager is already installed, its engine is detected and used in place without copying its signed files. Otherwise the bundled engine is unsigned. You can choose an installed LTK folder in Settings → Windows engine.
+4. Confirm the detected League installation, or choose the League folder or its `Game` subfolder. The choice is remembered.
+5. First import one known-working original custom `.fantome` mod, choose it, and click Apply selection before launching a fresh Practice Tool match.
+6. Check that the status changes from Waiting for game to In game, and that the mod appears. Stop should return the app to Ready.
+7. Try Favorites, the Library decks, a second skin for the same champion, custom voice/map imports, and a second fresh match without restarting cstmSKN.
 
-The preview keeps LTK's default validation enabled. If the engine rejects an archive, the app reports that rejection; no mod compatibility, paid-skin-catalog compatibility, or anti-cheat compatibility is guaranteed by an installer build. Do not disable system protections to make this preview run. The installer and redistributed engine are currently unsigned, and are not represented as official League Toolkit builds.
+The preview keeps LTK's default validation enabled. If the engine rejects an archive, the app reports that rejection; no mod compatibility, paid-skin-catalog compatibility, or anti-cheat compatibility is guaranteed by an installer build. Do not disable system protections to make this preview run. The cstmSKN installer and bundled fallback engine are currently unsigned, and are not represented as official League Toolkit builds.
 
 Your settings and library are stored under `%APPDATA%\com.silentrosehill.cstmskn`, separately from the Mac. Preview updates are manual from GitHub; the Windows app does not use the macOS updater feed.
 

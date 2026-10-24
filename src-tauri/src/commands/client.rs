@@ -235,6 +235,11 @@ mod tests {
     use super::*;
     use serde_json::json;
     #[test]
+    fn windows_quoted_client_flags_are_parsed_without_returning_credentials() {
+        let process = r#""D:\Riot Games\League of Legends\LeagueClientUx.exe" "--app-port=4567" "--remoting-auth-token=test_token""#;
+        assert_eq!(from_processes(process).unwrap().port, 4567);
+    }
+    #[test]
     fn credentials_are_strictly_local_and_validated() {
         assert_eq!(
             from_lockfile("LeagueClient:123:4567:test_token:https")

@@ -4,7 +4,7 @@ cstmSKN runs on Windows 11 x64 to Windows 11 x64 with the LeagueToolkit overlay 
 
 ## Install and test
 
-1. Download `cstmSKN-Windows-x64-setup.exe` from this project's Windows preview release. Install it for your user account.
+1. Download `cstmSKN-Windows-x64-setup.exe` from this project's Windows preview release and install it for your user account. Or, to skip installing, download `cstmSKN-Windows-x64-portable.zip`, extract it anywhere (for example a USB drive), and run `cstmSKN.exe`. Keep the `ltk` folder next to it.
 2. Open cstmSKN normally. Do not run it or the League client as administrator. Windows 11's WebView2 runtime is used by the interface.
 3. If LTK Manager is already installed, its engine is detected and used in place without copying its signed files. Otherwise the bundled engine is unsigned. You can choose an installed LTK folder in Settings → Windows engine.
 4. Confirm the detected League installation, or choose the League folder or its `Game` subfolder. The choice is remembered.

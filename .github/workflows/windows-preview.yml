@@ -57,7 +57,18 @@ jobs:
           Copy-Item WINDOWS.md release-windows/
           $installer = Get-Item release-windows/cstmSKN-Windows-x64-setup.exe
           if ($installer.Length -lt 1000000) { throw 'Installer is unexpectedly small' }
-          Get-FileHash release-windows/cstmSKN-Windows-x64-setup.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  cstmSKN-Windows-x64-setup.exe" } | Out-File -Encoding ascii release-windows/SHA256SUMS
+          # Portable build: the app plus its engine folder, no installer needed.
+          New-Item -ItemType Directory -Force portable/cstmSKN/ltk | Out-Null
+          Copy-Item src-tauri/target/release/cstmSKN.exe portable/cstmSKN/
+          Copy-Item src-tauri/resources/windows/* portable/cstmSKN/ltk/
+          Copy-Item WINDOWS.md, licenses/LTK-PATCHER-LICENSE.md portable/cstmSKN/
+          $app = Start-Process portable/cstmSKN/cstmSKN.exe -PassThru
+          Start-Sleep -Seconds 10
+          if ($app.HasExited) { throw "Portable app exited on launch ($($app.ExitCode))" }
+          Stop-Process -Id $app.Id -Force
+          Compress-Archive -Path portable/cstmSKN -DestinationPath release-windows/cstmSKN-Windows-x64-portable.zip
+          Copy-Item src-tauri/resources/windows/THIRD-PARTY-NOTICES.md release-windows/
+          Get-FileHash release-windows/* -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Out-File -Encoding ascii release-windows/SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: cstmSKN-Windows-x64-preview

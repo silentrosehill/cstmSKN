@@ -1,6 +1,6 @@
 [package]
 name = "cstmskn"
-version = "1.0.1"
+version = "1.0.2"
 description = "A lightweight desktop app to browse and apply League of Legends skins."
 authors = ["you"]
 license = "GPL-3.0"

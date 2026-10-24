@@ -676,7 +676,7 @@ dependencies = [
 
 [[package]]
 name = "cstmskn"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "camino",
  "cc",

@@ -26,7 +26,8 @@ launches cstmSKN through the normal Explorer shell, including when an installer
 or another app started it. This does not rename cstmSKN to LTK Manager or spoof a
 process identity. The installed LTK Manager and its settings/files are untouched.
 The app now uses its bundled derived runtime instead of selecting an installed
-LTK DLL with different launcher expectations.
+LTK DLL with different launcher expectations. Runtime SHA-256 checks reject
+missing, replaced or stale engine files before they can be started.
 
 Host-verification errors now reach the interface from either output stream and
 stop the affected session. The patcher keeps its existing validation flags;

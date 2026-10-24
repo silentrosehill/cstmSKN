@@ -113,6 +113,42 @@ fn preference(app: &AppHandle) -> Result<PathBuf, String> {
 fn paired(folder: &Path) -> bool {
     folder.join("ltk_patcher_host.exe").is_file() && folder.join("ltk_patcher_dll.dll").is_file()
 }
+#[cfg(target_os = "windows")]
+fn verify_runtime(folder: &Path) -> Result<(), String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    // Exact outputs of the pinned, reproducible preparation script. An
+    // installed original LTK DLL is not interchangeable with this derived pair.
+    const FILES: [(&str, &str); 2] = [
+        (
+            "ltk_patcher_host.exe",
+            "2d05f2a4224805e419fe6952214579d0fc469c52e718c7a6b1dd7d9729a98613",
+        ),
+        (
+            "ltk_patcher_dll.dll",
+            "9fe218c2de51f4e376226d633ba4bdea91c75d5b75bb411f2c1cad3bdc2a6299",
+        ),
+    ];
+    for (name, expected) in FILES {
+        let mut file = std::fs::File::open(folder.join(name)).map_err(|e| e.to_string())?;
+        if file.metadata().map_err(|e| e.to_string())?.len() > 16 * 1024 * 1024 {
+            return Err("The integrated runtime was replaced. Reinstall this candidate.".into());
+        }
+        let mut hash = Sha256::new();
+        let mut buffer = [0; 64 * 1024];
+        loop {
+            let count = file.read(&mut buffer).map_err(|e| e.to_string())?;
+            if count == 0 {
+                break;
+            }
+            hash.update(&buffer[..count]);
+        }
+        if format!("{:x}", hash.finalize()) != expected {
+            return Err("The integrated runtime does not match this build. Reinstall this candidate with its own ltk folder.".into());
+        }
+    }
+    Ok(())
+}
 pub(super) fn resolve(app: &AppHandle) -> Result<EngineInfo, String> {
     let folder = app
         .path()
@@ -128,6 +164,8 @@ pub(super) fn resolve(app: &AppHandle) -> Result<EngineInfo, String> {
     if !paired(&folder) {
         return Err("The integrated Windows runtime is missing. Reinstall this preview.".into());
     }
+    #[cfg(target_os = "windows")]
+    verify_runtime(&folder)?;
     Ok(EngineInfo {
         folder: super::game_path::plain_path(&folder.to_string_lossy()),
         source: "Integrated LTK runtime · cstmSKN preview",
@@ -164,6 +202,22 @@ pub fn set_windows_engine(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn prepared_runtime_matches_this_build_and_replacement_is_rejected() {
+        let prepared = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/windows");
+        verify_runtime(&prepared).unwrap();
+        let fake =
+            std::env::temp_dir().join(format!("cstm-replaced-engine-{}", std::process::id()));
+        std::fs::create_dir_all(&fake).unwrap();
+        std::fs::write(
+            fake.join("ltk_patcher_host.exe"),
+            b"an unexpected executable",
+        )
+        .unwrap();
+        assert!(verify_runtime(&fake).is_err());
+        std::fs::remove_dir_all(fake).unwrap();
+    }
     #[test]
     fn integrated_runtime_requires_both_files() {
         let root = std::env::temp_dir().join(format!("cstm-engine-fixture-{}", std::process::id()));

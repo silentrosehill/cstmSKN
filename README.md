@@ -67,3 +67,5 @@ xattr -dr com.apple.quarantine /Applications/cstmSKN.app
 ```
 
 League of Legends and its artwork belong to Riot Games. cstmSKN is not endorsed by or affiliated with Riot Games. Custom skins are used at your own risk.
+
+womp womp vibecoded idc the market sucks make ur own

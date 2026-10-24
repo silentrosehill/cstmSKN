@@ -68,7 +68,8 @@ jobs:
           Stop-Process -Id $app.Id -Force
           Compress-Archive -Path portable/cstmSKN -DestinationPath release-windows/cstmSKN-Windows-x64-portable.zip
           Copy-Item src-tauri/resources/windows/THIRD-PARTY-NOTICES.md release-windows/
-          Get-FileHash release-windows/* -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Out-File -Encoding ascii release-windows/SHA256SUMS
+          $sums = Get-FileHash release-windows/* -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" }
+          $sums | Out-File -Encoding ascii release-windows/SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: cstmSKN-Windows-x64-preview

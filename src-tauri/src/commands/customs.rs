@@ -112,6 +112,13 @@ fn safe_name(name: &str) -> Result<String, String> {
     if name.is_empty() || name == "." || name == ".." {
         return Err("Invalid mod name".into());
     }
+    #[cfg(target_os = "windows")]
+    {
+        name = name.trim_end_matches(['.', ' ']).to_owned();
+        let stem = name.split('.').next().unwrap_or_default().to_ascii_uppercase();
+        if ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"].contains(&stem.as_str()) { name.insert(0, '_'); }
+        if name.is_empty() { return Err("Invalid mod name".into()); }
+    }
     Ok(name)
 }
 

@@ -13,6 +13,8 @@ use std::{
 };
 use tauri::{AppHandle, Manager, State};
 
+static CLOSING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 struct Session {
     generation: u64,
     child: Child,
@@ -70,6 +72,10 @@ fn current(state: &Arc<Mutex<AppState>>, generation: u64) -> bool {
         .lock()
         .map(|s| s.patcher_gen == generation)
         .unwrap_or(false)
+}
+pub fn shutdown() {
+    CLOSING.store(true, std::sync::atomic::Ordering::SeqCst);
+    let _ = stop_host();
 }
 fn stop_host() -> Result<(), String> {
     let mut slot = session().lock().map_err(|e| e.to_string())?;
@@ -153,6 +159,9 @@ fn start(
     state: Arc<Mutex<AppState>>,
     paths: Vec<String>,
 ) -> Result<String, String> {
+    if CLOSING.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err("cstmSKN is closing.".into());
+    }
     if paths.is_empty() {
         return Err("No skins selected".into());
     }
@@ -216,7 +225,7 @@ fn start(
                 "Building LeagueToolkit overlay. Game originals are read-only.",
             );
             let mut builder = OverlayBuilder::new(
-                Utf8PathBuf::from(&game),
+                Utf8PathBuf::from(game.clone()),
                 utf8(&overlay)?,
                 utf8(&data.join("ltk-state"))?,
             );
@@ -260,7 +269,15 @@ fn start(
             let stdout = child.stdout.take();
             let stderr = child.stderr.take();
             let pid = child.id();
-            *session().lock().map_err(|e| e.to_string())? = Some(Session { generation, child });
+            {
+                let mut slot = session().lock().map_err(|e| e.to_string())?;
+                if CLOSING.load(std::sync::atomic::Ordering::SeqCst) {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Ok(());
+                }
+                *slot = Some(Session { generation, child });
+            }
             if let Ok(mut s) = state.lock() {
                 s.patcher_pid = Some(pid);
             }

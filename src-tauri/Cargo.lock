@@ -2308,7 +2308,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
- "zip 2.6.1",
+ "zip 2.4.2",
  "zstd",
 ]
 
@@ -2490,7 +2490,7 @@ dependencies = [
  "tracing",
  "walkdir",
  "xxhash-rust",
- "zip 2.6.1",
+ "zip 2.4.2",
  "zstd",
 ]
 
@@ -6254,9 +6254,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "2.6.1"
+version = "2.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dcb24d0152526ae49b9b96c1dcf71850ca1e0b882e4e28ed898a93c41334744"
+checksum = "fabe6324e908f85a1c52063ce7aa26b68dcb7eb6dbc83a2d148403c9bc3eba50"
 dependencies = [
  "aes",
  "arbitrary",
@@ -6265,6 +6265,7 @@ dependencies = [
  "crc32fast",
  "crossbeam-utils",
  "deflate64",
+ "displaydoc",
  "flate2",
  "getrandom 0.3.4",
  "hmac",
@@ -6273,6 +6274,7 @@ dependencies = [
  "memchr",
  "pbkdf2",
  "sha1",
+ "thiserror 2.0.21",
  "time",
  "xz2",
  "zeroize",
@@ -6372,4 +6374,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
 dependencies = [
  "zune-core",
+]
+
+[[package]]
+name = "zushi"
+version = "0.2.0-alpha.1"
+dependencies = [
+ "camino",
+ "cc",
+ "libc",
+ "ltk_overlay",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-dialog",
+ "tauri-plugin-process",
+ "tauri-plugin-shell",
+ "tauri-plugin-updater",
+ "ureq",
+ "winreg 0.55.0",
+ "zip 2.4.2",
+ "zip 9.0.5",
 ]

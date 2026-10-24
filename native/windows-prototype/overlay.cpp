@@ -109,14 +109,68 @@ void reject(const wchar_t* message, DWORD code = ERROR_INVALID_DATA) noexcept {
     InterlockedExchange(&config->enabled, 0);
     InterlockedExchange(&config->ready, -1);
 }
-bool exchange(void** slot, void* value) {
+bool exchange(void** slot, void* expected, void* value) {
     DWORD protection = 0;
     if (!VirtualProtect(slot, sizeof(void*), PAGE_READWRITE, &protection)) return false;
-    InterlockedExchangePointer(slot, value);
+    const bool swapped = InterlockedCompareExchangePointer(slot, value, expected) == expected;
     DWORD ignored = 0;
-    // If protection cannot be restored, report an error and leave the pinned
-    // hook disabled. Its addresses remain valid until this test process exits.
-    return VirtualProtect(slot, sizeof(void*), protection, &ignored) != FALSE;
+    const bool restored = VirtualProtect(slot, sizeof(void*), protection, &ignored) != FALSE;
+    const DWORD error = restored ? (swapped ? ERROR_SUCCESS : ERROR_INVALID_DATA) : GetLastError();
+    SetLastError(error);
+    return swapped && restored;
+}
+struct Image {
+    BYTE* base;
+    size_t size;
+    bool copy(size_t offset, void* output, size_t length) const {
+        if (offset > size || length > size - offset) return false;
+        SIZE_T read = 0;
+        return ReadProcessMemory(GetCurrentProcess(), base + offset, output, length, &read) != FALSE && read == length;
+    }
+    template<class T> bool read(size_t offset, T& output) const { return copy(offset, &output, sizeof(output)); }
+};
+bool gather_imports(HMODULE module, std::vector<Patch>& patches) {
+    MODULEINFO info{};
+    if (!GetModuleInformation(GetCurrentProcess(), module, &info, sizeof(info))) return false;
+    const Image image{reinterpret_cast<BYTE*>(module), info.SizeOfImage};
+    IMAGE_DOS_HEADER dos{};
+    IMAGE_NT_HEADERS64 nt{};
+    if (!image.read(0, dos) || dos.e_magic != IMAGE_DOS_SIGNATURE || dos.e_lfanew < 0 ||
+        !image.read(static_cast<size_t>(dos.e_lfanew), nt) || nt.Signature != IMAGE_NT_SIGNATURE ||
+        nt.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) return false;
+    if (nt.OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_IMPORT) return true;
+    const auto imports = nt.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (!imports.VirtualAddress) return true;
+    for (size_t i = 0; i < imports.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR); ++i) {
+        IMAGE_IMPORT_DESCRIPTOR descriptor{};
+        if (!image.read(static_cast<size_t>(imports.VirtualAddress) + i * sizeof(descriptor), descriptor)) return false;
+        if (!descriptor.Name) return true;
+        if (!descriptor.OriginalFirstThunk) continue;
+        for (size_t j = 0; j < image.size / sizeof(IMAGE_THUNK_DATA64); ++j) {
+            IMAGE_THUNK_DATA64 name{}, address{};
+            const size_t lookup = static_cast<size_t>(descriptor.OriginalFirstThunk) + j * sizeof(name);
+            const size_t slot = static_cast<size_t>(descriptor.FirstThunk) + j * sizeof(address);
+            if (!image.read(lookup, name) || !image.read(slot, address)) return false;
+            if (!name.u1.AddressOfData) break;
+            if (IMAGE_SNAP_BY_ORDINAL64(name.u1.Ordinal)) continue;
+            char symbol[12]{};
+            if (!image.copy(static_cast<size_t>(name.u1.AddressOfData) + sizeof(WORD), symbol, sizeof(symbol))) return false;
+            void* replacement = nullptr;
+            void* expected = nullptr;
+            if (std::memcmp(symbol, "CreateFileW", sizeof(symbol)) == 0) {
+                replacement = reinterpret_cast<void*>(&open_wide);
+                expected = reinterpret_cast<void*>(real_wide);
+            } else if (std::memcmp(symbol, "CreateFileA", sizeof(symbol)) == 0) {
+                replacement = reinterpret_cast<void*>(&open_ansi);
+                expected = reinterpret_cast<void*>(real_ansi);
+            }
+            if (replacement) {
+                if (address.u1.Function != reinterpret_cast<ULONG_PTR>(expected)) return false;
+                patches.push_back({reinterpret_cast<void**>(image.base + slot), expected, replacement});
+            }
+        }
+    }
+    return false; // No unbounded reads or writes into an unsupported import table.
 }
 void initialize() {
     const auto exe = cstm::executable_path();
@@ -193,36 +247,8 @@ void initialize() {
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
         reinterpret_cast<LPCWSTR>(module), &retained)) continue;
     struct ReleaseModule { HMODULE value; ~ReleaseModule() { FreeLibrary(value); } } retained_module{retained};
-    auto* base = reinterpret_cast<BYTE*>(module);
-    const auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
-    if (dos->e_magic != IMAGE_DOS_SIGNATURE) { reject(L"Fixture DOS header is invalid"); return; }
-    const auto* nt = reinterpret_cast<IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
-    if (nt->Signature != IMAGE_NT_SIGNATURE) { reject(L"Fixture PE header is invalid"); return; }
-    const auto imports = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-    if (!imports.VirtualAddress) continue;
-    auto* descriptor = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base + imports.VirtualAddress);
-    for (; descriptor->Name; ++descriptor) {
-        if (!descriptor->OriginalFirstThunk) continue;
-        auto* names = reinterpret_cast<IMAGE_THUNK_DATA64*>(base + descriptor->OriginalFirstThunk);
-        auto* addresses = reinterpret_cast<IMAGE_THUNK_DATA64*>(base + descriptor->FirstThunk);
-        for (; names->u1.AddressOfData; ++names, ++addresses) {
-            if (IMAGE_SNAP_BY_ORDINAL64(names->u1.Ordinal)) continue;
-            const auto* info = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(base + names->u1.AddressOfData);
-            void* replacement = nullptr;
-            void* expected = nullptr;
-            if (std::strcmp(info->Name, "CreateFileW") == 0) {
-                replacement = reinterpret_cast<void*>(&open_wide);
-                expected = reinterpret_cast<void*>(real_wide);
-            } else if (std::strcmp(info->Name, "CreateFileA") == 0) {
-                replacement = reinterpret_cast<void*>(&open_ansi);
-                expected = reinterpret_cast<void*>(real_ansi);
-            }
-            if (replacement) {
-                auto** slot = reinterpret_cast<void**>(&addresses->u1.Function);
-                if (*slot != expected) { reject(L"Fixture file API import was already changed"); return; }
-                patches.push_back({slot, expected, replacement});
-            }
-        }
+    if (!gather_imports(module, patches)) {
+        reject(L"Unsupported or changed target file API import table", ERROR_BAD_EXE_FORMAT); return;
     }
     }
     bool wide = false, ansi = false;
@@ -233,11 +259,19 @@ void initialize() {
     if ((!wide && !ansi) || (fixture && (!wide || !ansi))) {
         reject(L"Unsupported file-loading path: no compatible Windows file API imports were found"); return;
     }
+    size_t applied = 0;
     for (const auto& patch : patches) {
-        if (!exchange(patch.slot, patch.replacement)) {
-            reject(L"Could not update or protect the fixture import table", GetLastError());
+        if (!exchange(patch.slot, patch.original, patch.replacement)) {
+            const DWORD error = GetLastError();
+            // Compare before rollback too: never overwrite another component's
+            // concurrent change. A pinned disabled wrapper is safe if rollback
+            // cannot restore a slot or page protection.
+            for (size_t i = 0; i <= applied && i < patches.size(); ++i)
+                exchange(patches[i].slot, patches[i].replacement, patches[i].original);
+            reject(L"Could not update or protect target file imports", error);
             return;
         }
+        ++applied;
     }
     InterlockedExchange(&config->ready, 1);
 }

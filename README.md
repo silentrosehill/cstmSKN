@@ -6,6 +6,8 @@ I DONT TAKE CREDIT FOR ANYTHING HERE, THIS VERSION IS BASED, BUILT AND MODIFIED 
 
 [Download the latest release](https://github.com/silentrosehill/cstmSKN/releases/latest)
 
+**Windows alpha is now available:** the Windows 11 x64 version is offered as a [prerelease (v0.2.0-alpha.1)](https://github.com/silentrosehill/cstmSKN/releases/tag/v0.2.0-alpha.1). [Download the Windows installer](https://github.com/silentrosehill/cstmSKN/releases/download/v0.2.0-alpha.1/cstmSKN-Windows-x64-setup.exe). This is an early testing version; feedback is welcome.
+
 ## Screenshots
 
 <table>

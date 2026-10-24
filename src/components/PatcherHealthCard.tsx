@@ -26,7 +26,7 @@ export default function PatcherHealthCard({
           <h2>Patcher health</h2>
           <p>
             {!native
-              ? "Available in the Mac app."
+              ? "Available in the desktop app."
               : health.checking
                 ? "Checking…"
                 : health.error

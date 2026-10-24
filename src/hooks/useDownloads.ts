@@ -94,7 +94,7 @@ export function useDownloads() {
 
       let unlisten: (() => void) | undefined;
       try {
-        if (!isTauri()) throw new Error("Open cstmSKN on your Mac to download skins.");
+        if (!isTauri()) throw new Error("Open the cstmSKN desktop app to download skins.");
         unlisten = await listen<DownloadProgress>("download-progress", (event) => {
           setDownloading(
             `${event.payload.skinName} (${event.payload.current}/${event.payload.total})`

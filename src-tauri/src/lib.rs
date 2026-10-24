@@ -1,17 +1,23 @@
 mod commands;
 mod state;
+mod archive;
+#[cfg(any(target_os = "windows", test))]
+mod ltk_protocol;
 
 use state::AppState;
 use std::sync::{Arc, Mutex};
 
+#[cfg(target_os = "macos")]
 extern "C" {
     fn geteuid() -> u32;
 }
 
+#[cfg(target_os = "macos")]
 fn running_as_root() -> bool {
     unsafe { geteuid() == 0 }
 }
 
+#[cfg(target_os = "macos")]
 mod mac_auth {
     use std::os::raw::{c_char, c_int, c_void};
 
@@ -81,6 +87,7 @@ mod mac_auth {
 
 /// Relaunch the app as root via macOS Authorization Services.
 /// The original process waits for the root process to exit.
+#[cfg(target_os = "macos")]
 fn relaunch_as_admin() {
     use std::ffi::CString;
     use std::os::raw::{c_char, c_void};
@@ -176,6 +183,7 @@ fn relaunch_as_admin() {
 }
 
 /// Fallback: relaunch via osascript if Authorization Services fail.
+#[cfg(target_os = "macos")]
 fn relaunch_via_osascript() {
     let exe = std::env::current_exe().expect("failed to get executable path");
     let home = std::env::var("HOME").unwrap_or_default();
@@ -203,20 +211,26 @@ fn relaunch_via_osascript() {
     std::process::exit(if status.success() { 0 } else { 1 });
 }
 
+#[cfg(target_os = "macos")]
 const USER_HOME_ARG: &str = "--user-home";
+#[cfg(target_os = "macos")]
 const ROOT_HOME: &str = "/var/root";
+#[cfg(target_os = "macos")]
 const APP_DATA_SUBDIR: &str = "Library/Application Support/com.silentrosehill.cstmskn";
 
+#[cfg(target_os = "macos")]
 fn is_user_home(home: &str) -> bool {
     !home.is_empty() && home != ROOT_HOME && std::path::Path::new(home).is_dir()
 }
 
+#[cfg(target_os = "macos")]
 fn home_from_args() -> Option<String> {
     let mut args = std::env::args();
     args.find(|a| a == USER_HOME_ARG)?;
     args.next().filter(|h| is_user_home(h))
 }
 
+#[cfg(target_os = "macos")]
 fn console_user_home() -> Option<String> {
     use std::process::Command;
 
@@ -245,6 +259,7 @@ fn console_user_home() -> Option<String> {
 
 /// Point HOME at the real user's home so app_data_dir() lands somewhere the
 /// game (running as that user) can read, instead of root's private /var/root.
+#[cfg(target_os = "macos")]
 fn adopt_user_home() {
     let home = home_from_args()
         .or_else(|| std::env::var("HOME").ok().filter(|h| is_user_home(h)))
@@ -262,6 +277,7 @@ fn adopt_user_home() {
 
 /// Earlier versions could write everything under /var/root. Move it over once
 /// so users don't have to re-download their skins.
+#[cfg(target_os = "macos")]
 fn migrate_root_app_data(home: &str) {
     use std::path::Path;
 
@@ -282,6 +298,8 @@ fn migrate_root_app_data(home: &str) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "macos")]
+    {
     // mod-tools needs root for task_for_pid on macOS.
     if !running_as_root() {
         relaunch_as_admin();
@@ -292,8 +310,12 @@ pub fn run() {
 
     adopt_user_home();
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_updater::Builder::new().build())
+    }
+    let builder = tauri::Builder::default();
+    #[cfg(not(target_os = "windows"))]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+
+    builder
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())

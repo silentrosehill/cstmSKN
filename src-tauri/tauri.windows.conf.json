@@ -1,0 +1,45 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "cstmSKN",
+        "width": 1440,
+        "height": 920,
+        "resizable": true,
+        "maximizable": true,
+        "center": true,
+        "decorations": true,
+        "visible": false,
+        "focus": true,
+        "minWidth": 1000,
+        "minHeight": 700,
+        "transparent": false,
+        "windowEffects": {
+          "effects": [
+            "mica"
+          ],
+          "state": "active"
+        }
+      }
+    ]
+  },
+  "bundle": {
+    "targets": [
+      "nsis"
+    ],
+    "externalBin": [],
+    "resources": {
+      "resources/windows/": "ltk/"
+    },
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": false,
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

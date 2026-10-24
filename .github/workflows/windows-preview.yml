@@ -1,0 +1,60 @@
+name: Windows preview
+on:
+  push:
+    branches: [windows-ltk]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+      CARGO_PROFILE_RELEASE_STRIP: symbols
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Use current stable Rust
+        run: rustup update stable --no-self-update
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          workspaces: src-tauri
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Prepare licensed Windows engine
+        run: |
+          python scripts/test-windows-engine.py
+          python scripts/prepare-windows-engine.py
+          $files = @("ltk_patcher_host.exe", "ltk_patcher_dll.dll")
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature "src-tauri/resources/windows/$file"
+            if ($signature.Status -ne 'NotSigned') { throw "Unexpected publisher signature on $file" }
+          }
+      - name: Frontend regression tests
+        run: npm test
+      - name: Windows native regression tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
+      - name: Build Windows installer
+        run: npm run tauri -- build --bundles nsis
+      - name: Verify package and document provenance
+        run: |
+          New-Item -ItemType Directory -Force release-windows | Out-Null
+          Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe release-windows/cstmSKN-Windows-x64-setup.exe
+          Copy-Item src-tauri/resources/windows/provenance.json release-windows/engine-provenance.json
+          Copy-Item licenses/LTK-PATCHER-LICENSE.md release-windows/
+          Copy-Item WINDOWS.md release-windows/
+          $installer = Get-Item release-windows/cstmSKN-Windows-x64-setup.exe
+          if ($installer.Length -lt 1000000) { throw 'Installer is unexpectedly small' }
+          Get-FileHash release-windows/cstmSKN-Windows-x64-setup.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  cstmSKN-Windows-x64-setup.exe" } | Out-File -Encoding ascii release-windows/SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cstmSKN-Windows-x64-preview
+          path: release-windows/*
+          if-no-files-found: error
+          retention-days: 30

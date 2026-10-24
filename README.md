@@ -8,6 +8,10 @@ I DONT TAKE CREDIT FOR ANYTHING HERE, THIS VERSION IS BASED, BUILT AND MODIFIED 
 
 **Windows preview:** cstmSKN also runs on Windows 11 x64. Get it from the [Windows preview release](https://github.com/silentrosehill/cstmSKN/releases/tag/v1.0.2-windows-alpha.1) ([installer](https://github.com/silentrosehill/cstmSKN/releases/download/v1.0.2-windows-alpha.1/cstmSKN-Windows-x64-setup.exe) or [portable zip, no install](https://github.com/silentrosehill/cstmSKN/releases/download/v1.0.2-windows-alpha.1/cstmSKN-Windows-x64-portable.zip)). It's an early test build; see [WINDOWS.md](WINDOWS.md) for setup and limits.
 
+## Code signing policy
+
+We are applying to the [SignPath Foundation](https://signpath.org/) for an eligibility review. **No approval or SignPath signature has been granted.** Windows builds remain unsigned. The binary-only LTK runtime is disclosed as an eligibility limitation. See our [code signing policy and privacy information](CODE_SIGNING.md).
+
 ## Screenshots
 
 <table>

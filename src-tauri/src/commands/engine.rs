@@ -81,13 +81,13 @@ pub(super) fn resolve(app: &AppHandle) -> Result<EngineInfo, String> {
         let folder = normalize(Path::new(&saved))
             .ok_or("The selected LTK folder is unavailable. Choose it again in Settings.")?;
         return Ok(EngineInfo {
-            folder: folder.to_string_lossy().into_owned(),
+            folder: super::game_path::plain_path(&folder.to_string_lossy()),
             source: "Selected LTK installation",
         });
     }
     if let Some(folder) = installed() {
         return Ok(EngineInfo {
-            folder: folder.to_string_lossy().into_owned(),
+            folder: super::game_path::plain_path(&folder.to_string_lossy()),
             source: "Installed LTK Manager",
         });
     }
@@ -103,7 +103,7 @@ pub(super) fn resolve(app: &AppHandle) -> Result<EngineInfo, String> {
         folder
     };
     Ok(EngineInfo {
-        folder: folder.to_string_lossy().into_owned(),
+        folder: super::game_path::plain_path(&folder.to_string_lossy()),
         source: "Bundled unsigned preview engine",
     })
 }

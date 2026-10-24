@@ -118,16 +118,18 @@ export default function App() {
   const [catalogSearch, setCatalogSearch] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const windowsUpdate = useWindowsUpdate();
-  // Windows preview: look for a newer build once per launch and mention it.
+  // Windows preview: look for a newer build once per launch, after setup, and mention it.
+  const updateChecked = useRef(false);
   useEffect(() => {
-    if (!native || !isWindows) return;
+    if (!native || !isWindows || status !== "game-detected" || updateChecked.current) return;
+    updateChecked.current = true;
     void windowsUpdate.check().then((state) => {
       if (state.stage === "available")
         setToastMessage(
           `cstmSKN ${state.update.version} is available. Open Settings → Software Update to download it.`
         );
     });
-  }, [native, windowsUpdate.check]);
+  }, [native, status, windowsUpdate.check]);
   const [assignments, setAssignments] = useState<ChampionAssignments>(() =>
     stringRecord(readStored("cstm:mod-champions", {}))
   );

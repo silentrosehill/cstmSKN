@@ -17,7 +17,7 @@ pub(super) fn is_valid_game_dir(path: &str) -> bool {
     }
 }
 /// Windows canonical paths start with `\\?\`; show and store the normal `C:\...` form.
-fn plain_path(path: &str) -> String {
+pub(super) fn plain_path(path: &str) -> String {
     match path.strip_prefix(r"\\?\") {
         Some(rest) if rest.as_bytes().get(1) == Some(&b':') => rest.to_owned(),
         _ => path.to_owned(),

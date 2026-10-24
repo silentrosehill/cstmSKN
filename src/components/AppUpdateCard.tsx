@@ -1,7 +1,7 @@
 import { ArrowDownToLine, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import type { AppUpdates } from "../hooks/useAppUpdates";
 import { openUrl } from "../lib/commands";
-import { isWindows, useWindowsUpdate } from "../hooks/useWindowsUpdate";
+import { isWindows, useWindowsUpdate, windowsVersion } from "../hooks/useWindowsUpdate";
 import { version } from "../../package.json";
 import SystemIcon from "./SystemIcon";
 export default function AppUpdateCard({
@@ -95,7 +95,7 @@ function WindowsUpdateCard() {
         </span>
         <div className="software-update-title">
           <h2>Software Update</h2>
-          <p>cstmSKN {version} · Windows preview</p>
+          <p>cstmSKN {windowsVersion} · Windows preview</p>
         </div>
         <button
           className={available ? "primary-button" : "quiet-button"}

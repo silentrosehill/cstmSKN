@@ -1,6 +1,7 @@
 {
   "name": "cstmskn",
   "version": "1.0.1",
+  "windowsBuild": "windows-alpha.2",
   "private": true,
   "type": "module",
   "scripts": {

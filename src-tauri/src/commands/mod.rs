@@ -25,7 +25,7 @@ pub fn open_url(url: String) -> Result<(), String> {
     {
         use std::os::windows::process::CommandExt;
         // Fixed PowerShell code; the URL is supplied via an environment value.
-        Command::new("powershell.exe")
+        Command::new(powershell())
             .creation_flags(0x08000000)
             .args([
                 "-NoProfile",
@@ -61,6 +61,13 @@ pub fn open_url(url: String) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Windows PowerShell from the system folder, never a same-named file next to the app.
+#[cfg(target_os = "windows")]
+pub(crate) fn powershell() -> std::path::PathBuf {
+    std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()))
+        .join(r"System32\WindowsPowerShell\v1.0\powershell.exe")
 }
 
 pub fn dir_size(path: &std::path::Path) -> u64 {

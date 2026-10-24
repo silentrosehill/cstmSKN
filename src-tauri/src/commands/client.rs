@@ -92,7 +92,7 @@ fn connection(game: Option<&str>) -> Option<Connection> {
     #[cfg(target_os = "windows")]
     let output = {
         use std::os::windows::process::CommandExt;
-        Command::new("powershell.exe").creation_flags(0x08000000)
+        Command::new(super::powershell()).creation_flags(0x08000000)
             .args(["-NoProfile", "-NonInteractive", "-Command", "Get-CimInstance Win32_Process -Filter \"Name='LeagueClientUx.exe'\" | Select-Object -ExpandProperty CommandLine"])
             .output().ok()?
     };

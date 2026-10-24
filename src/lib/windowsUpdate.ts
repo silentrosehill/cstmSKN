@@ -11,14 +11,18 @@ export interface WindowsUpdate {
   notes: string;
 }
 
-/** "v1.0.2-windows-alpha.1" or "1.0.2" → [1, 0, 2]. */
+/**
+ * "v1.0.2-windows-alpha.3" → [1, 0, 2, 3]. A build without an alpha number is a full
+ * release and ranks above every alpha of the same version.
+ */
 export function versionParts(text: string): number[] | null {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)/.exec(text.trim());
-  return match ? match.slice(1, 4).map(Number) : null;
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-[\w.-]*?alpha\.(\d+))?/.exec(text.trim());
+  if (!match) return null;
+  return [...match.slice(1, 4).map(Number), match[4] ? Number(match[4]) : Infinity];
 }
 
 export function isNewer(candidate: number[], current: number[]): boolean {
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     if (candidate[i] !== current[i]) return candidate[i] > current[i];
   }
   return false;
@@ -41,7 +45,11 @@ export function newestWindowsRelease(
     if (!best || isNewer(parts, best.parts)) best = { parts, release };
   }
   return best
-    ? { version: best.parts.join("."), url: best.release.url, notes: best.release.notes }
+    ? {
+        version: best.release.tag.replace(/^v/, ""),
+        url: best.release.url,
+        notes: best.release.notes,
+      }
     : null;
 }
 

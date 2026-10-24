@@ -223,6 +223,8 @@ fn start(
             );
             builder.set_enabled_mods(mods);
             let built = builder.build().map_err(|e| format!("LTK overlay: {e}"))?;
+            // The builder keeps the mod archives open; release them so the next apply can rewrite them.
+            drop(builder);
             log(
                 &logfile,
                 &format!(

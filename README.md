@@ -45,3 +45,5 @@ More in [screenshots](screenshots).
 - **Appearance**: Liquid Glass sidebar on macOS 26, light and dark modes, tab or fixed accent colors.
 - **Software Update**: signed updates from GitHub with Update & Restart.
 - **Apple Silicon**: patcher support for the latest League client on M-series Macs.
+
+League of Legends and its artwork belong to Riot Games. cstmSKN is not endorsed by or affiliated with Riot Games. Custom skins are used at your own risk.

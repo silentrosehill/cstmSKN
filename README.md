@@ -46,4 +46,24 @@ More in [screenshots](screenshots).
 - **Software Update**: signed updates from GitHub with Update & Restart.
 - **Apple Silicon**: patcher support for the latest League client on M-series Macs.
 
+## Install
+
+1. Download **cstmSKN-macOS-arm64.zip** from the [latest release](https://github.com/silentrosehill/cstmSKN/releases/latest) (Apple Silicon Macs).
+2. Unzip it and move **cstmSKN.app** to your Applications folder.
+3. Open it. The patcher asks for your administrator password through the normal macOS dialog when you apply skins.
+
+### "Apple could not verify cstmSKN"
+
+cstmSKN isn't notarized by Apple, so macOS blocks it the first time you open it. To allow it:
+
+1. Try to open cstmSKN once, then click **Done** on the warning.
+2. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to cstmSKN.
+3. Confirm with **Open Anyway** and your password. macOS remembers this, so you only do it once.
+
+Or run this in Terminal after moving the app to Applications:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/cstmSKN.app
+```
+
 League of Legends and its artwork belong to Riot Games. cstmSKN is not endorsed by or affiliated with Riot Games. Custom skins are used at your own risk.

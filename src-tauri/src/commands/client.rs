@@ -170,7 +170,7 @@ pub async fn get_champ_select(
         // -q ignores user curl configuration, redirects/proxies are disabled,
         // and auth is supplied over stdin instead of command-line arguments.
         #[cfg(target_os = "windows")]
-        let curl = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\Windows".into())).join("System32/curl.exe");
+        let curl = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into())).join("System32/curl.exe");
         #[cfg(not(target_os = "windows"))]
         let curl = std::path::PathBuf::from("/usr/bin/curl");
         let mut command = Command::new(curl);

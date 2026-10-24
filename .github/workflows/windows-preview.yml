@@ -3,6 +3,9 @@ on:
   push:
     branches: [windows-ltk]
   workflow_dispatch:
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

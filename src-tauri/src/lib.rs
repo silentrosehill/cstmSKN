@@ -412,6 +412,7 @@ pub fn run() {
             commands::customs::clear_all_customs,
             commands::customs::get_customs_dir_size,
             commands::open_url,
+            commands::releases::list_releases,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -37,6 +37,7 @@ import type { TabId, NavigationPreferences } from "./lib/navigation";
 const Settings = lazy(() => import("./components/Settings"));
 import AppUpdateDialog from "./components/AppUpdateDialog";
 import { useAppUpdates } from "./hooks/useAppUpdates";
+import { isWindows, useWindowsUpdate } from "./hooks/useWindowsUpdate";
 const EnabledSkins = lazy(() => import("./components/EnabledSkins"));
 import Toast from "./components/Toast";
 import {
@@ -116,6 +117,17 @@ export default function App() {
   );
   const [catalogSearch, setCatalogSearch] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const windowsUpdate = useWindowsUpdate();
+  // Windows preview: look for a newer build once per launch and mention it.
+  useEffect(() => {
+    if (!native || !isWindows) return;
+    void windowsUpdate.check().then((state) => {
+      if (state.stage === "available")
+        setToastMessage(
+          `cstmSKN ${state.update.version} is available. Open Settings → Software Update to download it.`
+        );
+    });
+  }, [native, windowsUpdate.check]);
   const [assignments, setAssignments] = useState<ChampionAssignments>(() =>
     stringRecord(readStored("cstm:mod-champions", {}))
   );

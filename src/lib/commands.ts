@@ -6,6 +6,7 @@ async function invoke<T = void>(command: string, args?: Record<string, unknown>)
   if (["detect_game_path", "get_game_path"].includes(command)) return null as T;
   throw new Error("Open the cstmSKN desktop app to use native skin and game features.");
 }
+import type { ReleaseInfo } from "./windowsUpdate";
 import type {
   PatcherStatus,
   DownloadedSkin,
@@ -123,4 +124,10 @@ export async function getPatcherLog(): Promise<string> {
   return invoke<string>("get_patcher_log");
 }
 
-export async function openUrl(url: string): Promise<void> { return invoke("open_url", { url }); }
+export async function openUrl(url: string): Promise<void> {
+  return invoke("open_url", { url });
+}
+
+export async function listReleases(): Promise<ReleaseInfo[]> {
+  return invoke<ReleaseInfo[]>("list_releases");
+}

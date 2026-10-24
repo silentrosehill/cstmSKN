@@ -8,6 +8,7 @@ pub mod patcher;
 #[cfg(target_os = "windows")]
 #[path = "patcher_windows.rs"]
 pub mod patcher;
+pub mod releases;
 pub mod skins;
 
 use std::fs;

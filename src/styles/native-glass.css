@@ -1,0 +1,139 @@
+/* AppKit draws this backing in the desktop app when NSGlassEffectView exists. */
+:root[data-native-glass="true"] .glass-app.native .glass-sidebar::before {
+  display: none;
+}
+:root .glass-app .glass-sidebar .brand .cstm-wordmark {
+  color: var(--sidebar-text);
+}
+:root .glass-app .glass-sidebar .brand .cstm-wordmark span {
+  color: var(--sidebar-text);
+  opacity: 0.68;
+}
+:root .glass-app .glass-sidebar .nav-item {
+  color: var(--sidebar-text);
+  gap: 9px;
+  padding-left: 9px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  box-shadow: none;
+}
+:root .glass-app .glass-sidebar .nav-item:hover {
+  background: var(--sidebar-hover);
+}
+:root .glass-app .glass-sidebar .nav-item.active {
+  color: var(--sidebar-text);
+  background: var(--sidebar-selection);
+  border-color: var(--sidebar-line);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    0 2px 5px rgb(0 0 0 / 0.035);
+}
+.nav-item[data-view="whats-new"] {
+  --nav-color: #ffb340;
+}
+.nav-item[data-view="champions"] {
+  --nav-color: #63a9ff;
+}
+.nav-item[data-view="my-skins"] {
+  --nav-color: #ba9aff;
+}
+.nav-item[data-view="customs"] {
+  --nav-color: #fa8fbd;
+}
+.nav-item[data-view="enabled"] {
+  --nav-color: #62d799;
+}
+.nav-item[data-view="settings"] {
+  --nav-color: #b7bdc9;
+}
+:root[data-theme="light"] .nav-item[data-view="whats-new"] {
+  --nav-color: #b56b00;
+}
+:root[data-theme="light"] .nav-item[data-view="champions"] {
+  --nav-color: #176dd6;
+}
+:root[data-theme="light"] .nav-item[data-view="my-skins"] {
+  --nav-color: #8051d1;
+}
+:root[data-theme="light"] .nav-item[data-view="customs"] {
+  --nav-color: #c43e78;
+}
+:root[data-theme="light"] .nav-item[data-view="enabled"] {
+  --nav-color: #248854;
+}
+:root[data-theme="light"] .nav-item[data-view="settings"] {
+  --nav-color: #717780;
+}
+:root .glass-app .glass-sidebar .nav-symbol {
+  width: 27px;
+  height: 27px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--nav-color);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--nav-color) 14%, transparent),
+    color-mix(in srgb, var(--nav-color) 6%, transparent)
+  );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--nav-color) 17%, transparent);
+}
+:root .glass-app .glass-sidebar .nav-item .nav-symbol > * {
+  color: var(--nav-color);
+}
+:root .glass-app .glass-sidebar .nav-item.active .nav-symbol {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--nav-color) 23%, transparent),
+    color-mix(in srgb, var(--nav-color) 11%, transparent)
+  );
+}
+:root .glass-app.sidebar-collapsed .glass-sidebar .nav-item {
+  padding: 0;
+}
+:root .glass-app .glass-sidebar .nav-item em,
+:root .glass-app .glass-sidebar .enabled-heading,
+:root .glass-app .glass-sidebar .enabled-empty-label {
+  color: var(--sidebar-muted);
+}
+:root .glass-app .glass-sidebar .enabled-item:hover {
+  background: var(--sidebar-hover);
+}
+:root .glass-app .glass-sidebar .enabled-custom-icon {
+  color: #e9ab6b;
+  background: #dba56914;
+}
+:root[data-theme="light"] .glass-app .glass-sidebar .enabled-custom-icon {
+  color: #996329;
+}
+:root .glass-app .glass-sidebar .enabled-heading-icon {
+  color: #62d799;
+}
+:root[data-theme="light"] .glass-app .glass-sidebar .enabled-heading-icon {
+  color: #248854;
+}
+:root .glass-app .glass-sidebar .enabled-more {
+  color: var(--sidebar-text);
+}
+:root .glass-app .glass-sidebar .profile-avatar {
+  background: linear-gradient(145deg, #b9b9c5, #767680);
+  color: #fafafa;
+  box-shadow:
+    inset 0 1px 0 #ffffff50,
+    0 2px 6px #00000010;
+}
+:root .glass-app .glass-sidebar .profile {
+  border-color: var(--sidebar-line);
+}
+:root .glass-app .glass-sidebar .theme-button {
+  color: #e5bc72;
+}
+:root[data-theme="light"] .glass-app .glass-sidebar .theme-button {
+  color: #737a9a;
+}
+:root .glass-app .glass-sidebar .sidebar-resizer::after {
+  background: var(--sidebar-muted);
+}
+

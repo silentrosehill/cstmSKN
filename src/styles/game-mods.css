@@ -1,0 +1,123 @@
+.game-mods-intro {
+  margin: 0 0 22px;
+}
+.game-mods-intro h2 {
+  font-size: 23px;
+  letter-spacing: -0.75px;
+  font-weight: 520;
+}
+.game-mods-intro p {
+  font-size: 12px;
+  color: var(--glass-muted);
+  margin-top: 7px;
+}
+.mod-category-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 25px;
+}
+.mod-category-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 99px;
+  padding: 9px 12px;
+  color: var(--glass-muted);
+  font-size: 11px;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.mod-category-tabs button.selected {
+  border-color: var(--material-line);
+  background: var(--material-fill);
+  box-shadow: inset 0 1px 0 var(--material-sheen);
+  color: var(--glass-text);
+}
+.mod-category-tabs button:hover {
+  color: var(--glass-text);
+}
+.mod-import-kind {
+  max-width: 155px;
+  min-height: 33px;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  color: var(--glass-text);
+  background: var(--material-fill);
+  border: 1px solid var(--material-line);
+}
+.game-mods-view .custom-toolbar .search-field {
+  width: auto;
+  flex: 1;
+}
+.custom-mod {
+  position: relative;
+}
+.custom-art .star-button {
+  right: auto;
+  left: 10px;
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+}
+.custom-art > .custom-enabled-mark {
+  bottom: 11px;
+  left: auto;
+  right: 11px;
+}
+.custom-card-info select {
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid var(--material-line);
+  border-radius: 8px;
+  background: var(--material-fill);
+  color: var(--glass-muted);
+  font-size: 10px;
+  margin-bottom: 10px;
+}
+.custom-card-info h3 {
+  margin-bottom: 12px;
+}
+.custom-mod .custom-toggle {
+  width: 100%;
+}
+.custom-art.mod-art-map {
+  background:
+    radial-gradient(ellipse at 45% 70%, #427e6e22, transparent 65%),
+    linear-gradient(135deg, #75af9c14, #92b5dc06);
+  color: #8bc4b0;
+}
+.custom-art.mod-art-announcer {
+  background:
+    radial-gradient(ellipse at 45% 70%, #b87e5722, transparent 65%),
+    linear-gradient(135deg, #d09c7214, #dcca9206);
+  color: #d8b483;
+}
+.custom-art.mod-art-voice {
+  background:
+    radial-gradient(ellipse at 45% 70%, #a071c522, transparent 65%),
+    linear-gradient(135deg, #a78ed714, #9ba9e806);
+  color: #b7a1dd;
+}
+.mod-delete-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: var(--glass-solid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 20px;
+  flex-wrap: wrap;
+  align-content: center;
+}
+.mod-delete-confirm span {
+  width: 100%;
+  text-align: center;
+  margin-bottom: 14px;
+  font-size: 13px;
+}

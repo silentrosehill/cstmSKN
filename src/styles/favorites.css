@@ -1,0 +1,160 @@
+/* Personal collections and game mods share the same quiet glass controls. */
+.nav-item[data-view="favorites"] {
+  --nav-color: #efb951;
+}
+.nav-item[data-view="loadouts"] {
+  --nav-color: #b09bed;
+}
+.nav-item[data-view="game-mods"] {
+  --nav-color: #e78eae;
+}
+.glass-app .glass-sidebar nav {
+  flex: 0 1 auto;
+  min-height: 145px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.glass-app .enabled-section {
+  margin-top: 22px;
+}
+.collection-view {
+  height: 100%;
+  overflow-y: auto;
+  padding: 0 32px 34px;
+}
+.collection-toolbar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 23px;
+}
+.collection-toolbar .search-field {
+  margin-left: auto;
+  max-width: 280px;
+}
+.minimal-empty p {
+  font-size: 12px;
+  color: var(--glass-muted);
+  margin-top: 9px;
+  line-height: 1.6;
+}
+.favorite-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  gap: 20px;
+}
+.favorite-card {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--material-line);
+  border-radius: 17px;
+  overflow: hidden;
+  background: var(--material-fill);
+  box-shadow:
+    inset 0 1px 0 var(--material-sheen),
+    0 8px 22px #00000012;
+  transition:
+    transform 0.24s,
+    box-shadow 0.24s;
+}
+.favorite-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px #0003;
+}
+.favorite-art {
+  width: 100%;
+  aspect-ratio: 308/400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--accent-rgb) / 0.06);
+  overflow: hidden;
+  position: relative;
+  color: var(--accent);
+}
+.favorite-art .skin-portrait {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+  transition: transform 0.6s;
+}
+.favorite-card:hover .skin-portrait {
+  transform: scale(1.035);
+}
+.favorite-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 15px;
+  text-align: left;
+  width: 100%;
+}
+.favorite-caption span {
+  font-size: 10px;
+  color: var(--glass-muted);
+}
+.favorite-caption strong {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.star-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  z-index: 2;
+  border: 1px solid #ffffff26;
+  border-radius: 50%;
+  background: #17203270;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #e6e9f1;
+  transition:
+    color 0.18s,
+    background 0.18s,
+    transform 0.18s;
+}
+.star-button:hover {
+  background: #353d5099;
+}
+.star-button.starred {
+  color: #f3cc76;
+}
+.favorite-downloaded {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  background: #16492dcc;
+  border: 1px solid #adf4c855;
+  color: #bbf9d3;
+  border-radius: 50%;
+}
+.gallery-title-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.gallery-title-row h1 {
+  flex: 1;
+  min-width: 0;
+}
+.star-button.gallery-favorite {
+  position: static;
+  flex-shrink: 0;
+  background: var(--material-fill);
+  color: var(--glass-muted);
+  border-color: var(--material-line);
+  margin-top: 2px;
+}
+.star-button.gallery-favorite.starred {
+  color: #e3af4c;
+}

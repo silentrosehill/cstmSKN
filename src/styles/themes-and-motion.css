@@ -1,0 +1,118 @@
+:root[data-theme="light"] .danger-button {
+  color: #a83743;
+}
+:root[data-theme="light"] .health-indicator.needs-attention,
+:root[data-theme="light"] .loadout-warning {
+  color: #97612c;
+}
+:root[data-theme="light"] .import-success,
+:root[data-theme="light"] .review-champions svg,
+:root[data-theme="light"] .health-checks .ok summary > svg {
+  color: #347e52;
+}
+@media (max-width: 1100px) {
+  .collection-view {
+    padding-left: 25px;
+    padding-right: 25px;
+  }
+  .save-loadout {
+    flex-wrap: wrap;
+  }
+  .save-loadout > div {
+    flex: 1;
+  }
+  .save-loadout input {
+    flex: 1;
+  }
+  .game-mods-view .custom-toolbar {
+    flex-wrap: wrap;
+  }
+  .mod-category-tabs button {
+    font-size: 10px;
+    padding: 8px 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .favorite-card,
+  .favorite-art .skin-portrait,
+  .setting-switch,
+  .setting-switch span {
+    transition: none;
+  }
+  .favorite-card:hover,
+  .favorite-card:hover .skin-portrait {
+    transform: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .global-drop-overlay,
+  .import-review {
+    background: var(--glass-solid);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .import-review::backdrop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: #080a11b0;
+  }
+  .star-button {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: #242b3a;
+  }
+}
+.star-button.library-favorite {
+  top: auto;
+  bottom: 37px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: #172032aa;
+}
+.custom-art > .sf-symbol {
+  z-index: 1;
+}
+.import-review .review-mod-icon > .sf-symbol {
+  color: var(--accent);
+}
+:root[data-accent="release-gold"] {
+  --accent: #ffb340;
+  --accent-rgb: 255 179 64;
+}
+:root[data-accent="library-indigo"] {
+  --accent: #8ca8ef;
+  --accent-rgb: 140 168 239;
+}
+:root[data-accent="loadout-violet"] {
+  --accent: #b09bed;
+  --accent-rgb: 176 155 237;
+}
+:root[data-accent="mod-rose"] {
+  --accent: #e78eae;
+  --accent-rgb: 231 142 174;
+}
+:root[data-accent="custom-coral"] {
+  --accent: #e49d7b;
+  --accent-rgb: 228 157 123;
+}
+:root[data-theme="light"][data-accent="release-gold"] {
+  --accent: #a56812;
+  --accent-rgb: 165 104 18;
+}
+:root[data-theme="light"][data-accent="library-indigo"] {
+  --accent: #4869ba;
+  --accent-rgb: 72 105 186;
+}
+:root[data-theme="light"][data-accent="loadout-violet"] {
+  --accent: #7960bd;
+  --accent-rgb: 121 96 189;
+}
+:root[data-theme="light"][data-accent="mod-rose"] {
+  --accent: #b45b7b;
+  --accent-rgb: 180 91 123;
+}
+:root[data-theme="light"][data-accent="custom-coral"] {
+  --accent: #ae6644;
+  --accent-rgb: 174 102 68;
+}

@@ -1,31 +1,13 @@
-import { getItem, setItem, readStored, stringRecord } from "./lib/storage";
+import { setItem, readStored, stringRecord } from "./lib/storage";
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { isTauri } from "@tauri-apps/api/core";
-import {
-  Swords,
-  Layers,
-  Package,
-  Settings as SettingsIcon,
-  Moon,
-  Sun,
-  ChevronRight,
-  CircleCheck,
-  Maximize2,
-  PanelLeft,
-  Sparkles,
-  X,
-  Image as ImageIcon,
-  Star,
-  SlidersHorizontal,
-  Upload,
-  History,
-} from "lucide-react";
+import { Upload } from "lucide-react";
 import { useGamePath } from "./hooks/useGamePath";
 import { usePatcher } from "./hooks/usePatcher";
 import { useDownloads } from "./hooks/useDownloads";
 import { useCustoms } from "./hooks/useCustoms";
-import { useChampions, championAvatar, ensureChampions } from "./hooks/useChampions";
+import { useChampions, ensureChampions } from "./hooks/useChampions";
 import {
   ensureSkinIds,
   ensureRepoZips,
@@ -47,12 +29,11 @@ const Loadouts = lazy(() => import("./components/Loadouts"));
 import ImportReview from "./components/ImportReview";
 import { useFavorites, useSavedLoadouts } from "./hooks/useCollections";
 import { restoreLoadout, sanitizeLoadout, type SavedLoadout } from "./lib/collections";
-import { modKind, modLabel, supportedModPath } from "./lib/mods";
+import { modKind, supportedModPath } from "./lib/mods";
 import { useChampSelect } from "./hooks/useChampSelect";
 import { usePatcherHealth } from "./hooks/usePatcherHealth";
 import { sanitizeNavigation, moveTab, toggleTab } from "./lib/navigation";
 import type { TabId, NavigationPreferences } from "./lib/navigation";
-import { tabAccent } from "./lib/tabAccent";
 const Settings = lazy(() => import("./components/Settings"));
 import AppUpdateDialog from "./components/AppUpdateDialog";
 import { useAppUpdates } from "./hooks/useAppUpdates";
@@ -61,32 +42,21 @@ import Toast from "./components/Toast";
 import {
   chooseSkin,
   chooseCustom,
-  customTargets,
   loadoutPaths,
   type Loadout,
   type ChampionAssignments,
 } from "./lib/selection";
 import type { Champion, CustomMod, Skin, ModKind } from "./types";
-import brandIcon from "./assets/icon.png";
-import SystemIcon from "./components/SystemIcon";
+import Sidebar from "./components/Sidebar";
+import { NAV_ITEMS } from "./lib/navItems";
+import { useAppearance } from "./hooks/useAppearance";
+import { useFileDrop } from "./hooks/useFileDrop";
 import { useSidebar } from "./hooks/useSidebar";
 import { useNativeSidebarGlass } from "./hooks/useNativeSidebarGlass";
 import { useArtworkTheme } from "./hooks/useArtworkTheme";
 import type { CSSProperties } from "react";
 
 type View = TabId;
-const NAV_ITEMS: { id: View; label: string; icon: typeof Swords; symbol: string }[] = [
-  { id: "whats-new", label: "New Releases", icon: Sparkles, symbol: "new" },
-  { id: "champions", label: "Champions", icon: Swords, symbol: "grid" },
-  { id: "my-skins", label: "Library", icon: Layers, symbol: "library" },
-  { id: "favorites", label: "Favorites", icon: Star, symbol: "star" },
-  { id: "loadouts", label: "Loadouts", icon: SlidersHorizontal, symbol: "loadouts" },
-  { id: "game-mods", label: "Game Mods", icon: SlidersHorizontal, symbol: "mods" },
-  { id: "customs", label: "Custom skins", icon: Package, symbol: "custom" },
-  { id: "enabled", label: "Enabled", icon: CircleCheck, symbol: "enabled" },
-  { id: "changelog", label: "Changelog", icon: History, symbol: "history" },
-  { id: "settings", label: "Settings", icon: SettingsIcon, symbol: "settings" },
-];
 
 export default function App() {
   const { gamePath, detectedPath, status, selectPath, confirmSetup, checkPath } = useGamePath();
@@ -100,7 +70,6 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const importingRef = useRef(false);
   const [reviewNames, setReviewNames] = useState<string[]>([]);
-  const [dragging, setDragging] = useState(false);
   const [gameImportKind, setGameImportKind] = useState<ModKind>("other");
   const [followClient, setFollowClient] = useState(
     () => readStored("cstm:follow-client", true) === true
@@ -129,16 +98,16 @@ export default function App() {
   const sidebarElement = useRef<HTMLElement>(null);
   useNativeSidebarGlass(sidebarElement, native);
   const [artwork, setArtwork] = useState<string | null>(null);
-  const [theme, setTheme] = useState(() => getItem("glass:theme") ?? "dark");
-  const [accent, setAccent] = useState(() => getItem("glass:accent") ?? "lavender");
-  const [accentMode, setAccentMode] = useState(() => getItem("glass:accent-mode") ?? "tab");
-  useArtworkTheme(artwork, theme);
   const [view, setView] = useState<View>(() =>
     navigation.hidden.includes("champions")
       ? (navigation.order.find((id) => !navigation.hidden.includes(id)) ?? "settings")
       : "champions"
   );
-  const effectiveAccent = tabAccent(view, accent, accentMode);
+  const { theme, setTheme, accent, setAccent, accentMode, setAccentMode } = useAppearance(
+    view,
+    native
+  );
+  useArtworkTheme(artwork, theme);
   const [selectedChampion, setSelectedChampion] = useState<Champion | null>(null);
   const [selectedSkinId, setSelectedSkinId] = useState<string | null>(null);
   const [previewSkin, setPreviewSkin] = useState<Skin | null>(null);
@@ -174,9 +143,6 @@ export default function App() {
   );
   const enabledMods = customMods.filter((c) => c.enabled);
   const selectionCount = selectedDownloads.length + enabledMods.length;
-  const sidebarDownloads = selectedDownloads.slice(0, 4);
-  const sidebarMods = enabledMods.slice(0, Math.max(0, 4 - sidebarDownloads.length));
-  const sidebarRemaining = selectionCount - sidebarDownloads.length - sidebarMods.length;
   const activePaths = loadoutPaths(loadout, dl.downloads, customs.customs);
   const health = usePatcherHealth(activePaths, gamePath, patcher.status);
   const clientStatus = useChampSelect(
@@ -193,23 +159,6 @@ export default function App() {
   );
   const reviewedMod = customMods.find((mod) => mod.name === reviewNames[0]);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    setItem("glass:theme", theme);
-    if (native)
-      void getCurrentWebviewWindow()
-        .setTheme(theme === "light" ? "light" : "dark")
-        .catch(() => {});
-  }, [theme, native]);
-  useEffect(() => {
-    document.documentElement.dataset.accent = effectiveAccent;
-  }, [effectiveAccent]);
-  useEffect(() => {
-    setItem("glass:accent", accent);
-  }, [accent]);
-  useEffect(() => {
-    setItem("glass:accent-mode", accentMode);
-  }, [accentMode]);
   useEffect(() => {
     if (native)
       getCurrentWebviewWindow()
@@ -597,8 +546,7 @@ export default function App() {
     );
   }
 
-  const dropHandler = useRef<(paths: string[]) => void>(() => {});
-  dropHandler.current = (paths) => {
+  const dragging = useFileDrop(native, (paths) => {
     if (updates.blocking || importingRef.current) return;
     const files = paths.filter(supportedModPath);
     if (!files.length) {
@@ -615,209 +563,34 @@ export default function App() {
         }
       }
     })();
-  };
-  useEffect(() => {
-    if (!native) return;
-    let cancelled = false;
-    let unlisten: (() => void) | undefined;
-    let lastDrop = "";
-    let lastTime = 0;
-    getCurrentWebviewWindow()
-      .onDragDropEvent((event) => {
-        if (event.payload.type === "drop") {
-          setDragging(false);
-          const key = JSON.stringify(event.payload.paths);
-          const now = Date.now();
-          if (key === lastDrop && now - lastTime < 1000) return;
-          lastDrop = key;
-          lastTime = now;
-          dropHandler.current(event.payload.paths);
-        } else setDragging(event.payload.type !== "leave");
-      })
-      .then((fn) => {
-        if (cancelled) fn();
-        else unlisten = fn;
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [native]);
+  });
 
   return (
     <div
       className={`glass-app ${native ? "native" : ""} ${sidebar.collapsed ? "sidebar-collapsed" : ""} ${sidebar.resizing ? "sidebar-resizing" : ""}`}
       style={{ "--sidebar-width": `${sidebar.width}px` } as CSSProperties}
     >
-      <aside className="glass-sidebar" ref={sidebarElement} inert={updates.blocking}>
-        <div className="brand">
-          <img className="brand-app-icon" src={brandIcon} alt="cstmSKN icon" />
-          <div className="brand-wordmark">
-            <strong className="cstm-wordmark">
-              cstm<span>SKN</span>
-            </strong>
-          </div>
-          <button
-            className="sidebar-toggle"
-            onClick={sidebar.toggle}
-            aria-label={sidebar.collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={sidebar.collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <SystemIcon name="sidebar" fallback={PanelLeft} size={18} />
-          </button>
-        </div>
-        <nav aria-label="Main navigation">
-          {visibleNav.map(({ id, label, icon: Icon, symbol }) => (
-            <button
-              key={id}
-              title={label}
-              aria-label={label}
-              aria-current={view === id ? "page" : undefined}
-              onClick={() => handleNav(id)}
-              data-view={id}
-              className={`nav-item ${view === id ? "active" : ""}`}
-            >
-              <span className="nav-symbol">
-                <SystemIcon name={symbol} fallback={Icon} size={19} />
-              </span>
-              <span className="nav-label">{label}</span>
-              {id === "my-skins" && dl.downloads.length > 0 && <em>{dl.downloads.length}</em>}
-              {id === "customs" && customMods.some((m) => modKind(m) === "skin") && (
-                <em>{customMods.filter((m) => modKind(m) === "skin").length}</em>
-              )}
-              {id === "game-mods" && customMods.some((m) => modKind(m) !== "skin") && (
-                <em>{customMods.filter((m) => modKind(m) !== "skin").length}</em>
-              )}
-              {id === "enabled" && selectionCount > 0 && <em>{selectionCount}</em>}
-            </button>
-          ))}
-        </nav>
-        {!navigation.hidden.includes("enabled") && (
-          <section className="enabled-section" aria-label="Enabled skins">
-            <button
-              className="enabled-heading"
-              onClick={() => handleNav("enabled")}
-              aria-label="Expand enabled skins"
-              title="Open enabled skins"
-            >
-              <SystemIcon
-                name="enabled"
-                fallback={CircleCheck}
-                size={18}
-                className="enabled-heading-icon"
-              />
-              <span className="enabled-title">Enabled</span>
-              <em>{selectionCount}</em>
-              <SystemIcon
-                name="expand"
-                fallback={Maximize2}
-                size={12}
-                className="enabled-expand-icon"
-              />
-            </button>
-            {selectionCount === 0 ? (
-              <p className="enabled-empty-label">None</p>
-            ) : (
-              <div className="enabled-list">
-                {sidebarDownloads.map((d) => {
-                  const champion = champions.find(
-                    (c) => c.name === d.champion_name || c.id === d.champion_name
-                  );
-                  return (
-                    <div className="enabled-item" key={d.zip_path}>
-                      <button
-                        className="enabled-open"
-                        title={`${d.champion_name} · ${d.skin_name}`}
-                        aria-label={`${d.champion_name} · ${d.skin_name}`}
-                        onClick={() => {
-                          if (champion) {
-                            openChampion(champion);
-                          }
-                        }}
-                      >
-                        {champion ? (
-                          <img src={championAvatar(champion.id)} alt="" />
-                        ) : (
-                          <div className="enabled-custom-icon">
-                            <ImageIcon size={14} />
-                          </div>
-                        )}
-                        <span>
-                          <strong>{champion?.name ?? d.champion_name}</strong>
-                          <small>{d.skin_name}</small>
-                        </span>
-                      </button>
-                      <button
-                        className="enabled-remove"
-                        aria-label={`Disable ${d.skin_name}`}
-                        onClick={() => disableSkin(d.champion_name)}
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  );
-                })}
-                {sidebarMods.map((mod) => (
-                  <div className="enabled-item" key={mod.file_path}>
-                    <button
-                      className="enabled-open"
-                      title={mod.name}
-                      aria-label={mod.name}
-                      onClick={() => handleNav(modKind(mod) === "skin" ? "customs" : "game-mods")}
-                    >
-                      <div className="enabled-custom-icon">
-                        <Package size={15} />
-                      </div>
-                      <span>
-                        <strong>
-                          {customTargets(mod, champions, assignments)
-                            .map(
-                              (id) => champions.find((c) => c.id.toLowerCase() === id)?.name ?? id
-                            )
-                            .join(", ") || modLabel(mod)}
-                        </strong>
-                        <small>{mod.name}</small>
-                      </span>
-                    </button>
-                    <button
-                      className="enabled-remove"
-                      aria-label={`Disable ${mod.name}`}
-                      onClick={() => toggleCustom(mod)}
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {sidebarRemaining > 0 && (
-              <button className="enabled-more" onClick={() => handleNav("enabled")}>
-                <span>View all {selectionCount}</span>
-                <ChevronRight size={13} />
-              </button>
-            )}
-          </section>
-        )}
-        <div className="sidebar-bottom">
-          <div className="profile">
-            <div className="profile-avatar">c</div>
-            <strong>cstmSKN</strong>
-            <button
-              className="theme-button"
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} appearance`}
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {theme === "dark" ? (
-                <SystemIcon name="sun" fallback={Sun} size={18} />
-              ) : (
-                <SystemIcon name="moon" fallback={Moon} size={18} />
-              )}
-            </button>
-          </div>
-        </div>
-        <div className="sidebar-resizer" {...sidebar.separator} />
-      </aside>
+      <Sidebar
+        element={sidebarElement}
+        sidebar={sidebar}
+        blocked={updates.blocking}
+        items={visibleNav}
+        view={view}
+        onNav={handleNav}
+        downloadCount={dl.downloads.length}
+        customMods={customMods}
+        showEnabled={!navigation.hidden.includes("enabled")}
+        selectionCount={selectionCount}
+        enabledDownloads={selectedDownloads}
+        enabledMods={enabledMods}
+        champions={champions}
+        assignments={assignments}
+        onOpenChampion={(champion) => openChampion(champion)}
+        onDisableSkin={disableSkin}
+        onToggleCustom={toggleCustom}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
       <div className="workspace" inert={updates.blocking}>
         {view !== "champions" && view !== "whats-new" && (
           <div className="view-heading">

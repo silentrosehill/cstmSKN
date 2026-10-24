@@ -1,0 +1,158 @@
+/* Artwork remains the color source while its gallery is open. */
+:root[data-artwork="true"][data-accent] {
+  --accent: var(--art-accent);
+  --accent-rgb: var(--art-accent-rgb);
+}
+.accent-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.accent-mode-control {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--material-line);
+  background: var(--material-fill);
+  border-radius: 99px;
+}
+.accent-mode-control button {
+  padding: 6px 10px;
+  border-radius: 99px;
+  font-size: 10px;
+  color: var(--glass-muted);
+}
+.accent-mode-control button.chosen {
+  background: rgb(var(--accent-rgb) / 0.14);
+  color: var(--glass-text);
+  box-shadow: inset 0 1px 0 var(--material-sheen);
+}
+.nav-item[data-view="customs"] {
+  --nav-color: #e49d7b;
+}
+
+:root .glass-app .primary-button,
+:root .glass-app .gallery-select-button {
+  transition:
+    background 0.3s,
+    border-color 0.3s,
+    color 0.3s,
+    transform 0.18s;
+}
+.sidebar-settings {
+  padding: 19px;
+  border: 1px solid var(--material-line);
+  border-radius: 17px;
+  background: var(--material-fill);
+  box-shadow: inset 0 1px 0 var(--material-sheen);
+  margin-bottom: 25px;
+}
+.sidebar-settings-heading {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 17px;
+}
+.sidebar-settings-heading > div {
+  flex: 1;
+}
+.sidebar-settings h2 {
+  font-size: 13px;
+  font-weight: 550;
+}
+.sidebar-settings-heading p {
+  font-size: 11px;
+  color: var(--glass-muted);
+  margin-top: 6px;
+}
+.sidebar-settings-heading > button {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
+}
+.sidebar-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 48px;
+  border-top: 1px solid var(--material-line);
+  transition:
+    background 0.18s,
+    opacity 0.18s;
+}
+.sidebar-setting-row.dragging {
+  background: rgb(var(--accent-rgb) / 0.1);
+  border-radius: 9px;
+  box-shadow:
+    0 0 0 1px rgb(var(--accent-rgb) / 0.25),
+    0 5px 15px #0002;
+}
+.tab-drag-handle {
+  height: 31px;
+  width: 23px;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+  color: var(--glass-muted);
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.tab-drag-handle:active {
+  cursor: grabbing;
+}
+.sidebar-setting-row.dragging .tab-drag-handle {
+  color: var(--accent);
+}
+.sidebar-setting-icon {
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.sidebar-setting-label {
+  font-size: 12px;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.sidebar-setting-label small {
+  font-size: 9px;
+  color: var(--glass-muted);
+}
+.sidebar-setting-row.hidden-tab .sidebar-setting-icon,
+.sidebar-setting-row.hidden-tab .sidebar-setting-label {
+  opacity: 0.4;
+}
+.tab-order-buttons {
+  display: flex;
+  gap: 4px;
+  margin-right: 7px;
+}
+.tab-order-buttons button {
+  height: 25px;
+  width: 25px;
+  border: 1px solid var(--material-line);
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--glass-muted);
+}
+.tab-order-buttons button:hover:not(:disabled) {
+  color: var(--accent);
+  background: rgb(var(--accent-rgb) / 0.07);
+}
+.tab-order-buttons button:disabled {
+  opacity: 0.2;
+}
+.sidebar-setting-row > .setting-switch {
+  margin-right: 1px;
+}
+.sidebar-setting-row:last-child {
+  margin-bottom: -4px;
+}
+

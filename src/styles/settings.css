@@ -1,0 +1,161 @@
+.client-settings,
+.health-card {
+  padding: 19px;
+  border: 1px solid var(--material-line);
+  border-radius: 17px;
+  background: var(--material-fill);
+  margin-bottom: 25px;
+  box-shadow: inset 0 1px 0 var(--material-sheen);
+}
+.client-settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.client-settings h2,
+.health-card h2 {
+  font-size: 13px;
+  font-weight: 550;
+}
+.client-settings p,
+.health-card-heading p {
+  font-size: 11px;
+  line-height: 1.6;
+  margin-top: 6px;
+  color: var(--glass-muted);
+}
+.client-settings small {
+  display: block;
+  font-size: 10px;
+  margin-top: 8px;
+  color: var(--glass-muted);
+  opacity: 0.8;
+}
+.setting-switch {
+  height: 23px;
+  width: 39px;
+  background: rgb(128 128 145/0.24);
+  border: 1px solid var(--material-line);
+  border-radius: 99px;
+  padding: 2px;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.setting-switch span {
+  height: 17px;
+  width: 17px;
+  display: block;
+  background: #eee;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px #0003;
+  transition: transform 0.2s;
+}
+.setting-switch.on {
+  background: var(--accent);
+}
+.setting-switch.on span {
+  transform: translateX(15px);
+}
+.setting-switch:disabled {
+  opacity: 0.4;
+}
+.health-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.health-card-heading > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.health-card-heading > div {
+  flex: 1;
+  min-width: 0;
+}
+.health-card-heading > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.health-checks {
+  margin-top: 19px;
+}
+.health-checks details {
+  border-top: 1px solid var(--material-line);
+}
+.health-checks summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 12px 0;
+}
+.health-checks summary::-webkit-details-marker {
+  display: none;
+}
+.health-checks .ok summary > svg {
+  color: #7dc69e;
+}
+.health-checks .error summary > svg {
+  color: #dfab6b;
+}
+.health-checks small {
+  font-size: 10px;
+  color: var(--glass-muted);
+  margin-left: auto;
+}
+.health-checks p {
+  font-size: 11px;
+  color: var(--glass-muted);
+  line-height: 1.7;
+  padding: 0 0 13px 23px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.health-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 15px;
+  border-top: 1px solid var(--material-line);
+  margin-top: 10px;
+}
+.health-actions span {
+  font-size: 10px;
+  color: var(--glass-muted);
+  flex: 1;
+  line-height: 1.6;
+}
+.health-actions button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.health-indicator {
+  color: var(--glass-muted);
+  border: 0 !important;
+  border-radius: 50% !important;
+  min-width: 28px;
+  min-height: 28px;
+  display: grid;
+  place-items: center;
+  background: transparent !important;
+}
+.health-indicator:hover {
+  color: var(--accent);
+}
+.health-indicator.needs-attention {
+  color: #dda86d;
+}
+.quiet-button:disabled,
+.primary-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

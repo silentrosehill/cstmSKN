@@ -90,7 +90,7 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
 }
-/* Zushi Glass — native-inspired, translucent materials */
+/* cstmSKN glass — native-inspired, translucent materials */
 @theme {
   --color-charcoal-50: #535d70;
   --color-charcoal-100: #353c4e;

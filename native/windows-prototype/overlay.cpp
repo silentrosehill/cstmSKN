@@ -129,7 +129,7 @@ struct Image {
     }
     template<class T> bool read(size_t offset, T& output) const { return copy(offset, &output, sizeof(output)); }
 };
-bool gather_imports(HMODULE module, std::vector<Patch>& patches) {
+bool gather_imports(HMODULE module, std::vector<Patch>& patches, size_t& inspected) {
     MODULEINFO info{};
     if (!GetModuleInformation(GetCurrentProcess(), module, &info, sizeof(info))) return false;
     const Image image{reinterpret_cast<BYTE*>(module), info.SizeOfImage};
@@ -141,12 +141,13 @@ bool gather_imports(HMODULE module, std::vector<Patch>& patches) {
     if (nt.OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_IMPORT) return true;
     const auto imports = nt.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
     if (!imports.VirtualAddress) return true;
-    for (size_t i = 0; i < imports.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR); ++i) {
+    for (size_t i = 0; i < imports.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR) && i < 4096; ++i) {
         IMAGE_IMPORT_DESCRIPTOR descriptor{};
         if (!image.read(static_cast<size_t>(imports.VirtualAddress) + i * sizeof(descriptor), descriptor)) return false;
         if (!descriptor.Name) return true;
         if (!descriptor.OriginalFirstThunk) continue;
         for (size_t j = 0; j < image.size / sizeof(IMAGE_THUNK_DATA64); ++j) {
+            if (++inspected > 65536) return false;
             IMAGE_THUNK_DATA64 name{}, address{};
             const size_t lookup = static_cast<size_t>(descriptor.OriginalFirstThunk) + j * sizeof(name);
             const size_t slot = static_cast<size_t>(descriptor.FirstThunk) + j * sizeof(address);
@@ -235,6 +236,13 @@ void initialize() {
     }
     modules.resize(bytes / sizeof(HMODULE));
     std::vector<Patch> patches;
+    std::vector<HMODULE> retained_modules;
+    retained_modules.reserve(modules.size());
+    struct ReleaseModules {
+        std::vector<HMODULE>& modules;
+        ~ReleaseModules() { for (HMODULE module : modules) FreeLibrary(module); }
+    } retained_cleanup{retained_modules};
+    size_t inspected = 0;
     for (HMODULE module : modules) {
     if (fixture && module != GetModuleHandleW(nullptr)) continue;
     wchar_t module_name[32768]{};
@@ -246,8 +254,8 @@ void initialize() {
     HMODULE retained = nullptr;
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
         reinterpret_cast<LPCWSTR>(module), &retained)) continue;
-    struct ReleaseModule { HMODULE value; ~ReleaseModule() { FreeLibrary(value); } } retained_module{retained};
-    if (!gather_imports(module, patches)) {
+    retained_modules.push_back(retained);
+    if (!gather_imports(module, patches, inspected)) {
         reject(L"Unsupported or changed target file API import table", ERROR_BAD_EXE_FORMAT); return;
     }
     }

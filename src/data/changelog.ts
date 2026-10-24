@@ -1,5 +1,13 @@
 export const CHANGELOG = [
   {
+    version: "1.0.3",
+    title: "Windows skins & in-app updates",
+    changes: [
+      "Windows can now apply skins in game, using cstmSKN's own bundled engine.",
+      "The installed Windows app updates itself, like the Mac app does.",
+    ],
+  },
+  {
     version: "1.0.2",
     title: "Pick your form",
     changes: [

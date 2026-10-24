@@ -312,10 +312,24 @@ fn start(
                 }
             });
             let error_log = logfile.clone();
+            let error_state = state.clone();
             let errors = std::thread::spawn(move || {
                 if let Some(stderr) = stderr {
                     for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                         log(&error_log, &line);
+                        // stderr is diagnostic-only: do not let lifecycle chatter
+                        // on this stream overwrite stdout's session state.
+                        if let Some(next @ PatcherStatus::Error(_)) =
+                            crate::ltk_protocol::status(&line)
+                        {
+                            update(&error_state, generation, next);
+                            let _ = stop_host_for(Some(generation));
+                            if let Ok(mut state) = error_state.lock() {
+                                if state.patcher_gen == generation {
+                                    state.patcher_pid = None;
+                                }
+                            }
+                        }
                     }
                 }
             });

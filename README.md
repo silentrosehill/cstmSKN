@@ -14,12 +14,16 @@ I DONT TAKE CREDIT FOR ANYTHING HERE, THIS VERSION IS BASED, BUILT AND MODIFIED 
     <td width="50%"><img src="screenshots/02-skin-gallery-camille.png" alt="Winterblessed Camille in the skin gallery with its chromas" /><br /><sub>Skin gallery with chromas</sub></td>
   </tr>
   <tr>
-    <td><img src="screenshots/03-skin-gallery-ahri.png" alt="Dynasty Ahri in the skin gallery with the thumbnail filmstrip" /><br /><sub>Thumbnail filmstrip and download actions</sub></td>
-    <td><img src="screenshots/04-skin-gallery-artwork-colors.png" alt="Foxfire Ahri with interface colors taken from the splash" /><br /><sub>Colors from the artwork</sub></td>
-  </tr>
-  <tr>
     <td><img src="screenshots/05-library-card-decks.png" alt="Library with one card deck per champion" /><br /><sub>Library card decks</sub></td>
     <td><img src="screenshots/06-library-camille-deck.png" alt="Camille's card deck with the selected skin on top" /><br /><sub>One deck per champion</sub></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/07-favorites.png" alt="Favorites with starred skins and download actions" /><br /><sub>Favorites</sub></td>
+    <td><img src="screenshots/08-new-releases.png" alt="New Releases listing the skins added in the current patch" /><br /><sub>New Releases</sub></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/09-settings.png" alt="Settings with appearance, accent color and sidebar tabs" /><br /><sub>Settings</sub></td>
+    <td></td>
   </tr>
 </table>
 

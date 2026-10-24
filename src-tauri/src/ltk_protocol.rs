@@ -24,6 +24,14 @@ pub fn host_exit_error(code: Option<i32>) -> String {
         None => "LTK host exited unexpectedly. Check patcher diagnostics.".into(),
     }
 }
+
+pub fn hook_target_pid(line: &str) -> Option<u32> {
+    if !line.contains("hook install failed") {
+        return None;
+    }
+    line.split_whitespace()
+        .find_map(|word| word.strip_prefix("pid=")?.parse().ok())
+}
 pub fn configure(prefix: &str) -> Result<String, String> {
     if prefix.is_empty() || prefix.chars().any(char::is_control) {
         return Err("Invalid overlay directory".into());
@@ -68,7 +76,7 @@ pub fn status(line: &str) -> Option<PatcherStatus> {
                 "waiting" => Some(PatcherStatus::InGame),
                 "exited" => Some(PatcherStatus::GameExited),
                 "failed" if message.contains("SetWindowsHookEx") => Some(PatcherStatus::Error(
-                    "League is running as administrator, so the engine must too. Turn on “Run engine as administrator” in Settings → Windows engine, or stop running League as administrator.".into(),
+                    hook_failure(message),
                 )),
                 "failed" => Some(PatcherStatus::Error(format!("LTK: {message}"))),
                 _ => None,
@@ -79,9 +87,37 @@ pub fn status(line: &str) -> Option<PatcherStatus> {
         _ => None,
     }
 }
+
+fn hook_failure(message: &str) -> String {
+    let code = message
+        .split("0x")
+        .nth(1)
+        .and_then(|hex| hex.split(|c: char| !c.is_ascii_hexdigit()).next())
+        .and_then(|hex| u32::from_str_radix(hex, 16).ok());
+    match code {
+        Some(5) => format!("LTK game hook was denied access: {message}. If League runs elevated, enable engine administrator mode. If the engine is already elevated, check Windows security diagnostics."),
+        Some(0) => format!("LTK game hook failed: {message}. The engine supplied no specific Windows error. Copy patcher diagnostics to investigate."),
+        _ => format!("LTK game hook failed: {message}. Check patcher diagnostics."),
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn hook_target_context_uses_only_the_reported_process_id() {
+        assert_eq!(
+            hook_target_pid("1s ERROR worker: hook install failed tid=4544 pid=9220 error=0"),
+            Some(9220)
+        );
+        for line in [
+            "normal pid=9220",
+            "hook install failed pid=bad",
+            "hook install failed tid=4544",
+            "hook install failed pid=4294967296",
+        ] {
+            assert_eq!(hook_target_pid(line), None);
+        }
+    }
     #[test]
     fn policy_failures_are_not_mistaken_for_missing_game_or_bad_archives() {
         let exit = host_exit_error(Some(0xC0E90002_u32 as i32));
@@ -111,11 +147,23 @@ mod tests {
         }
     }
     #[test]
-    fn hook_failure_explains_required_elevation() {
-        assert_eq!(
-            status("status 1.0 failed SetWindowsHookEx failed: 0x00000000"),
-            Some(PatcherStatus::Error("League is running as administrator, so the engine must too. Turn on “Run engine as administrator” in Settings → Windows engine, or stop running League as administrator.".into()))
-        );
+    fn hook_failure_keeps_the_code_without_inventing_a_permissions_mismatch() {
+        for code in ["0x00000000", "0x000005A4", "unspecified"] {
+            let Some(PatcherStatus::Error(message)) = status(&format!(
+                "status 1.0 failed SetWindowsHookEx failed: {code}"
+            )) else {
+                panic!("hook failure must be visible")
+            };
+            assert!(message.contains(code));
+            assert!(!message.contains("administrator"));
+        }
+        let Some(PatcherStatus::Error(denied)) =
+            status("status 1.0 failed SetWindowsHookEx failed: 0x00000005")
+        else {
+            panic!("missing denial")
+        };
+        assert!(denied.contains("If League runs elevated"));
+        assert!(denied.contains("already elevated"));
     }
     #[test]
     fn host_verification_refusal_is_an_error_after_attachment() {

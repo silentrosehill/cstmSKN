@@ -25,6 +25,15 @@ game,” reports recognized code-integrity failures, and stops a host that never
 finishes starting. Loader errors are returned to the host instead of opening a
 blocking system modal; this changes error reporting only, not Windows security.
 
+Hook attachment failures keep the numeric `SetWindowsHookEx` code. Only an
+access-denied code suggests checking relative engine/game permissions; other
+codes do not claim League is running as administrator. Windows engine Settings
+shows the GUI's actual token. The normal Explorer relaunch can remove the GUI's
+elevation, so a Run as administrator launch is carried forward as a request for
+the engine's normal UAC prompt when Apply starts it. An already elevated GUI
+passes its permissions directly to the engine. These changes do not resolve
+unsigned-code trust or prove a game hook succeeds.
+
 ## What changed
 
 The previous preview could attach to League and then silently fail when the DLL

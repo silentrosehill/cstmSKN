@@ -32,6 +32,89 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 /// Appended to the copy's arguments, so a copy never restarts again.
 const RELAUNCHED_ARG: &str = "--cstmskn-shell-relaunched";
+const ADMIN_ENGINE_ARG: &str = "--cstmskn-admin-engine";
+
+/// This requests the host's ordinary UAC elevation, never a privileged token.
+pub fn engine_elevation_requested() -> bool {
+    std::env::args_os().any(|arg| arg == ADMIN_ENGINE_ARG)
+}
+
+pub fn is_elevated() -> bool {
+    unsafe { token_elevation(GetCurrentProcess()).unwrap_or(false) }
+}
+
+unsafe fn token_elevation(process: windows_sys::Win32::Foundation::HANDLE) -> Option<bool> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::Security::{
+        GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+    };
+    use windows_sys::Win32::System::Threading::OpenProcessToken;
+    unsafe {
+        let mut token = null_mut();
+        if OpenProcessToken(process, TOKEN_QUERY, &mut token) == 0 {
+            return None;
+        }
+        let mut elevation: TOKEN_ELEVATION = zeroed();
+        let mut length = 0;
+        let ok = GetTokenInformation(
+            token,
+            TokenElevation,
+            (&raw mut elevation).cast(),
+            size_of::<TOKEN_ELEVATION>() as u32,
+            &mut length,
+        ) != 0;
+        CloseHandle(token);
+        ok.then_some(elevation.TokenIsElevated != 0)
+    }
+}
+
+/// Read-only context for a failed hook, including a target that already exited.
+/// An inaccessible token is reported as unknown, never as non-administrator.
+pub fn describe_target(pid: u32) -> String {
+    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, STILL_ACTIVE};
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    unsafe {
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if process.is_null() {
+            return format!(
+                "target pid={pid}: query unavailable (Windows error {})",
+                GetLastError()
+            );
+        }
+        let mut exit_code = 0;
+        let running = if GetExitCodeProcess(process, &mut exit_code) == 0 {
+            "unknown"
+        } else if exit_code == STILL_ACTIVE as u32 {
+            "true"
+        } else {
+            "false"
+        };
+        let elevated = match token_elevation(process) {
+            Some(true) => "true",
+            Some(false) => "false",
+            None => "unknown",
+        };
+        CloseHandle(process);
+        format!("target pid={pid}: running={running}, elevated={elevated}")
+    }
+}
+
+fn relaunch_arguments(mut args: Vec<u16>, elevated: bool) -> Vec<u16> {
+    if !args.is_empty() {
+        args.push(u16::from(b' '));
+    }
+    args.extend(RELAUNCHED_ARG.encode_utf16());
+    // Explorer normally launches the copy without elevation. Preserve an
+    // explicit Run as administrator launch as an engine UAC request instead
+    // of silently forgetting it. The GUI remains in the normal shell context.
+    if elevated {
+        args.push(u16::from(b' '));
+        args.extend(ADMIN_ENGINE_ARG.encode_utf16());
+    }
+    args
+}
 
 /// Starts a copy of the manager through the shell if the shell is not this process's parent.
 ///
@@ -53,11 +136,7 @@ pub fn relaunch_if_needed() -> bool {
     let (Ok(exe), Ok(dir)) = (std::env::current_exe(), std::env::current_dir()) else {
         return false;
     };
-    let mut args = arguments();
-    if !args.is_empty() {
-        args.push(u16::from(b' '));
-    }
-    args.extend(RELAUNCHED_ARG.encode_utf16());
+    let args = relaunch_arguments(arguments(), is_elevated());
 
     match shell_execute(&exe, &args, &dir) {
         Ok(()) => {
@@ -203,5 +282,18 @@ mod tests {
         assert_eq!(skip(r"C:\cstmSKN\cstmSKN.exe   a b"), "a b");
         assert_eq!(skip(r#""C:\cstmSKN\cstmSKN.exe""#), "");
         assert_eq!(skip("cstmSKN.exe"), "");
+    }
+
+    #[test]
+    fn elevated_launch_survives_the_normal_explorer_relaunch_as_a_uac_request() {
+        let original = r#""cstmskn://x y""#.encode_utf16().collect::<Vec<_>>();
+        let normal = String::from_utf16(&relaunch_arguments(original.clone(), false)).unwrap();
+        assert_eq!(normal, r#""cstmskn://x y" --cstmskn-shell-relaunched"#);
+        let elevated = String::from_utf16(&relaunch_arguments(original, true)).unwrap();
+        assert_eq!(elevated, format!("{normal} {ADMIN_ENGINE_ARG}"));
+        assert_eq!(
+            String::from_utf16(&relaunch_arguments(vec![], false)).unwrap(),
+            RELAUNCHED_ARG
+        );
     }
 }

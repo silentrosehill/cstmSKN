@@ -240,6 +240,13 @@ fn start(
             let elevate = super::engine::should_elevate(&app);
             log(
                 &logfile,
+                &format!(
+                    "Windows permissions: cstmSKN elevated={}; requesting engine UAC={elevate}",
+                    super::engine::app_is_elevated(),
+                ),
+            );
+            log(
+                &logfile,
                 if elevate {
                     "Starting LTK host with --elevate (administrator mode)."
                 } else {
@@ -322,6 +329,15 @@ fn start(
                 if let Some(stderr) = stderr {
                     for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                         log(&error_log, &line);
+                        if let Some(pid) = crate::ltk_protocol::hook_target_pid(&line) {
+                            log(
+                                &error_log,
+                                &format!(
+                                    "Hook failure context: {}",
+                                    crate::windows_shell::describe_target(pid)
+                                ),
+                            );
+                        }
                         // stderr is diagnostic-only: do not let lifecycle chatter
                         // on this stream overwrite stdout's session state.
                         if let Some(next @ PatcherStatus::Error(_)) =
@@ -492,6 +508,19 @@ pub async fn get_patcher_health(
         (s.game_path.clone(), s.patcher_status.clone())
     };
     let resources = resources(&app)?;
+    let permissions = format!(
+        "cstmSKN token: {}. Engine: {}.",
+        if super::engine::app_is_elevated() {
+            "administrator"
+        } else {
+            "standard user"
+        },
+        if super::engine::should_elevate(&app) {
+            "will request UAC elevation when started"
+        } else {
+            "inherits cstmSKN permissions"
+        },
+    );
     let data = base(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let check = |id, label, ok, detail: &str| HealthCheck {
@@ -534,12 +563,7 @@ pub async fn get_patcher_health(
                     "Reinstall the Windows preview."
                 },
             ),
-            check(
-                "permissions",
-                "Game access",
-                true,
-                "Runs as your Windows user; administrator mode is not required.",
-            ),
+            check("permissions", "Game access", true, &permissions),
             check(
                 "storage",
                 "Mod storage",

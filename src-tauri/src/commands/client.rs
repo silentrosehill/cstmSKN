@@ -50,7 +50,10 @@ fn from_processes(text: &str) -> Option<Connection> {
         .lines()
         .filter(|line| line.contains("LeagueClientUx") && !line.contains("LeagueClientUx Helper"))
     {
-        let args: Vec<_> = line.split_whitespace().map(|arg| arg.trim_matches('"')).collect();
+        let args: Vec<_> = line
+            .split_whitespace()
+            .map(|arg| arg.trim_matches('"'))
+            .collect();
         let port = args.iter().find_map(|a| a.strip_prefix("--app-port="));
         let password = args
             .iter()
@@ -170,12 +173,18 @@ pub async fn get_champ_select(
         // -q ignores user curl configuration, redirects/proxies are disabled,
         // and auth is supplied over stdin instead of command-line arguments.
         #[cfg(target_os = "windows")]
-        let curl = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into())).join("System32/curl.exe");
+        let curl = std::path::PathBuf::from(
+            std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()),
+        )
+        .join("System32/curl.exe");
         #[cfg(not(target_os = "windows"))]
         let curl = std::path::PathBuf::from("/usr/bin/curl");
         let mut command = Command::new(curl);
         #[cfg(target_os = "windows")]
-        { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
         let mut child = command
             .args([
                 "-q",

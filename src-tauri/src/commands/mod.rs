@@ -24,32 +24,40 @@ pub fn open_url(url: String) -> Result<(), String> {
     {
         use std::os::windows::process::CommandExt;
         // Fixed PowerShell code; the URL is supplied via an environment value.
-        Command::new("powershell.exe").creation_flags(0x08000000)
-            .args(["-NoProfile", "-NonInteractive", "-Command", "Start-Process -FilePath $env:CSTMSKN_OPEN_URL"])
-            .env("CSTMSKN_OPEN_URL", &url).spawn().map_err(|e| e.to_string())?;
+        Command::new("powershell.exe")
+            .creation_flags(0x08000000)
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Start-Process -FilePath $env:CSTMSKN_OPEN_URL",
+            ])
+            .env("CSTMSKN_OPEN_URL", &url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
     }
     #[cfg(not(target_os = "windows"))]
     {
-    // stat -f '%Su' /dev/console gives the user who owns the GUI session.
-    let real_user = Command::new("/usr/bin/stat")
-        .args(["-f", "%Su", "/dev/console"])
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_default();
+        // stat -f '%Su' /dev/console gives the user who owns the GUI session.
+        let real_user = Command::new("/usr/bin/stat")
+            .args(["-f", "%Su", "/dev/console"])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
 
-    if !real_user.is_empty() && real_user != "root" {
-        Command::new("/usr/bin/sudo")
-            .args(["-u", &real_user, "/usr/bin/open", "--", &url])
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    } else {
-        Command::new("/usr/bin/open")
-            .args(["--", &url])
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
+        if !real_user.is_empty() && real_user != "root" {
+            Command::new("/usr/bin/sudo")
+                .args(["-u", &real_user, "/usr/bin/open", "--", &url])
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else {
+            Command::new("/usr/bin/open")
+                .args(["--", &url])
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
 }

@@ -40,21 +40,60 @@ fn encode_path(s: &str) -> Result<String, String> {
     #[cfg(target_os = "windows")]
     let encoded = {
         let mut encoded = encoded;
-        for (ch, code) in [(':' , "%3A"), ('*', "%2A"), ('?', "%3F"), ('"', "%22"), ('<', "%3C"), ('>', "%3E"), ('|', "%7C")] { encoded = encoded.replace(ch, code); }
-        while encoded.ends_with(['.', ' ']) { let ch = encoded.pop().unwrap(); encoded.push_str(if ch == '.' { "%2E" } else { "%20" }); }
-        let stem = encoded.split('.').next().unwrap_or_default().to_ascii_uppercase();
-        if ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"].contains(&stem.as_str()) { encoded.insert_str(0, "%5F"); }
+        for (ch, code) in [
+            (':', "%3A"),
+            ('*', "%2A"),
+            ('?', "%3F"),
+            ('"', "%22"),
+            ('<', "%3C"),
+            ('>', "%3E"),
+            ('|', "%7C"),
+        ] {
+            encoded = encoded.replace(ch, code);
+        }
+        while encoded.ends_with(['.', ' ']) {
+            let ch = encoded.pop().unwrap();
+            encoded.push_str(if ch == '.' { "%2E" } else { "%20" });
+        }
+        let stem = encoded
+            .split('.')
+            .next()
+            .unwrap_or_default()
+            .to_ascii_uppercase();
+        if [
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+            "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        ]
+        .contains(&stem.as_str())
+        {
+            encoded.insert_str(0, "%5F");
+        }
         encoded
     };
-    if encoded.len() > 220 { return Err("Skin name is too long for this filesystem".into()); }
+    if encoded.len() > 220 {
+        return Err("Skin name is too long for this filesystem".into());
+    }
     Ok(encoded)
 }
 fn decode_path(s: &str) -> String {
     #[cfg(target_os = "windows")]
     let s = s.strip_prefix("%5F").unwrap_or(s);
+    #[allow(unused_mut)]
     let mut result = s.replace("%2F", "/");
     #[cfg(target_os = "windows")]
-    for (code, ch) in [("%3A", ":"), ("%2A", "*"), ("%3F", "?"), ("%22", "\""), ("%3C", "<"), ("%3E", ">"), ("%7C", "|"), ("%2E", "."), ("%20", " ")] { result = result.replace(code, ch); }
+    for (code, ch) in [
+        ("%3A", ":"),
+        ("%2A", "*"),
+        ("%3F", "?"),
+        ("%22", "\""),
+        ("%3C", "<"),
+        ("%3E", ">"),
+        ("%7C", "|"),
+        ("%2E", "."),
+        ("%20", " "),
+    ] {
+        result = result.replace(code, ch);
+    }
     result
 }
 
@@ -134,14 +173,20 @@ fn replace_file(from: &std::path::Path, to: &std::path::Path) -> Result<(), Stri
     {
         use std::os::windows::ffi::OsStrExt;
         #[link(name = "kernel32")]
-        extern "system" { fn MoveFileExW(from: *const u16, to: *const u16, flags: u32) -> i32; }
+        extern "system" {
+            fn MoveFileExW(from: *const u16, to: *const u16, flags: u32) -> i32;
+        }
         let from: Vec<u16> = from.as_os_str().encode_wide().chain(Some(0)).collect();
         let to: Vec<u16> = to.as_os_str().encode_wide().chain(Some(0)).collect();
-        if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), 1 | 8) } == 0 { return Err(std::io::Error::last_os_error().to_string()); }
+        if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), 1 | 8) } == 0 {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
         Ok(())
     }
     #[cfg(not(target_os = "windows"))]
-    { fs::rename(from, to).map_err(|e| e.to_string()) }
+    {
+        fs::rename(from, to).map_err(|e| e.to_string())
+    }
 }
 fn download_to(
     base: &std::path::Path,
@@ -412,8 +457,12 @@ mod tests {
         fs::write(&fixture, b"skin fixture").unwrap();
         let archive = dir.join("valid.zip");
         let mut zip = zip::ZipWriter::new(fs::File::create(&archive).unwrap());
-        zip.start_file("fixture.txt", zip::write::SimpleFileOptions::default()).unwrap(); zip.write_all(b"skin fixture").unwrap(); zip.finish().unwrap();
-        let destination = dir.join("installed.zip"); fs::write(&destination, b"previous").unwrap();
+        zip.start_file("fixture.txt", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(b"skin fixture").unwrap();
+        zip.finish().unwrap();
+        let destination = dir.join("installed.zip");
+        fs::write(&destination, b"previous").unwrap();
         copy_package(fs::File::open(&archive).unwrap(), &destination).unwrap();
         assert_eq!(fs::read(&destination).unwrap(), fs::read(&archive).unwrap());
         assert!(!destination.with_extension("download").exists());
@@ -422,7 +471,11 @@ mod tests {
     #[cfg(target_os = "windows")]
     #[test]
     fn windows_catalog_names_round_trip_without_invalid_characters() {
-        for name in ["PROJECT: Ashe", "K/DA Kai'Sa", "CON", "name.", "name "] { let encoded = encode_path(name).unwrap(); assert!(!encoded.contains(':')); assert_eq!(decode_path(&encoded), name); }
+        for name in ["PROJECT: Ashe", "K/DA Kai'Sa", "CON", "name.", "name "] {
+            let encoded = encode_path(name).unwrap();
+            assert!(!encoded.contains(':'));
+            assert_eq!(decode_path(&encoded), name);
+        }
     }
     #[cfg(unix)]
     #[test]

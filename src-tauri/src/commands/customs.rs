@@ -115,9 +115,22 @@ fn safe_name(name: &str) -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
         name = name.trim_end_matches(['.', ' ']).to_owned();
-        let stem = name.split('.').next().unwrap_or_default().to_ascii_uppercase();
-        if ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"].contains(&stem.as_str()) { name.insert(0, '_'); }
-        if name.is_empty() { return Err("Invalid mod name".into()); }
+        let stem = name
+            .split('.')
+            .next()
+            .unwrap_or_default()
+            .to_ascii_uppercase();
+        if [
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+            "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        ]
+        .contains(&stem.as_str())
+        {
+            name.insert(0, '_');
+        }
+        if name.is_empty() {
+            return Err("Invalid mod name".into());
+        }
     }
     Ok(name)
 }
@@ -402,7 +415,10 @@ mod tests {
     fn windows_import_names_cannot_be_device_names() {
         assert_eq!(safe_name("CON.fantome").unwrap(), "_CON");
         assert_eq!(safe_name("AUX.zip").unwrap(), "_AUX");
-        assert_eq!(safe_name("My Custom Skin.fantome").unwrap(), "My Custom Skin");
+        assert_eq!(
+            safe_name("My Custom Skin.fantome").unwrap(),
+            "My Custom Skin"
+        );
     }
     #[test]
     fn imports_preserve_categories_and_never_overwrite_existing_archives() {
@@ -424,7 +440,9 @@ mod tests {
         let mut zip = zip::ZipWriter::new(std::fs::File::create(&source).unwrap());
         for name in ["META/info.json", "WAD/Ahri.wad.client/a.bin"] {
             use std::io::Write;
-            zip.start_file(name, zip::write::SimpleFileOptions::default()).unwrap(); zip.write_all(b"fixture").unwrap();
+            zip.start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(b"fixture").unwrap();
         }
         zip.finish().unwrap();
         let first =
@@ -536,7 +554,9 @@ mod tests {
         let mut zip = zip::ZipWriter::new(std::fs::File::create(&archive).unwrap());
         for name in ["META/info.json", "WAD/Camille.wad.client/aabbcc.bin"] {
             use std::io::Write;
-            zip.start_file(name, zip::write::SimpleFileOptions::default()).unwrap(); zip.write_all(b"fixture").unwrap();
+            zip.start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(b"fixture").unwrap();
         }
         zip.finish().unwrap();
         let targets = archive_targets(&archive);

@@ -692,6 +692,7 @@ dependencies = [
  "tauri-plugin-updater",
  "ureq",
  "winreg 0.55.0",
+ "zip 2.4.2",
  "zip 9.0.5",
 ]
 
@@ -6374,27 +6375,4 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
 dependencies = [
  "zune-core",
-]
-
-[[package]]
-name = "zushi"
-version = "0.2.0-alpha.1"
-dependencies = [
- "camino",
- "cc",
- "libc",
- "ltk_overlay",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-dialog",
- "tauri-plugin-process",
- "tauri-plugin-shell",
- "tauri-plugin-updater",
- "ureq",
- "winreg 0.55.0",
- "zip 2.4.2",
- "zip 9.0.5",
 ]

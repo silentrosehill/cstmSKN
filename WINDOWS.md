@@ -1,6 +1,6 @@
-# cstmSKN for Windows — first preview
+# cstmSKN for Windows (preview)
 
-This branch ports cstmSKN to Windows 11 x64 with the LeagueToolkit overlay builder and LTK patcher. The stable macOS release remains unchanged. The first preview needs an in-game Practice Tool test on a real Windows PC before it can be called working in-game.
+cstmSKN runs on Windows 11 x64 to Windows 11 x64 with the LeagueToolkit overlay builder and LTK patcher. The stable macOS release remains unchanged. The preview still needs an in-game Practice Tool test on a real Windows PC before it can be called working in-game.
 
 ## Install and test
 

@@ -1,8 +1,8 @@
-mod commands;
-mod state;
 mod archive;
+mod commands;
 #[cfg(any(target_os = "windows", test))]
 mod ltk_protocol;
+mod state;
 
 use state::AppState;
 use std::sync::{Arc, Mutex};
@@ -348,16 +348,15 @@ fn migrate_root_app_data(home: &str) {
 pub fn run() {
     #[cfg(target_os = "macos")]
     {
-    // mod-tools needs root for task_for_pid on macOS.
-    if !running_as_root() {
-        relaunch_as_admin();
-        return;
-    }
+        // mod-tools needs root for task_for_pid on macOS.
+        if !running_as_root() {
+            relaunch_as_admin();
+            return;
+        }
 
-    eprintln!("[cstmSKN] Running as root (euid=0)");
+        eprintln!("[cstmSKN] Running as root (euid=0)");
 
-    adopt_user_home();
-
+        adopt_user_home();
     }
     let builder = tauri::Builder::default();
     #[cfg(not(target_os = "windows"))]
@@ -418,7 +417,9 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|_handle, event| {
             #[cfg(target_os = "windows")]
-            if matches!(event, tauri::RunEvent::Exit) { commands::patcher::shutdown(); }
+            if matches!(event, tauri::RunEvent::Exit) {
+                commands::patcher::shutdown();
+            }
             #[cfg(not(target_os = "windows"))]
             let _ = event;
         });

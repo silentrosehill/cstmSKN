@@ -12,17 +12,44 @@ std::string read_handle(HANDLE file) {
     CloseHandle(file);
     return ok ? std::string(bytes.data(), count) : std::string{};
 }
-std::string read_wide(const std::wstring& path, DWORD access = GENERIC_READ) {
+std::string read_wide(const std::wstring& path, DWORD access = GENERIC_READ,
+                      DWORD flags = FILE_ATTRIBUTE_NORMAL) {
     return read_handle(CreateFileW(path.c_str(), access, FILE_SHARE_READ | FILE_SHARE_WRITE,
-        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        nullptr, OPEN_EXISTING, flags, nullptr));
 }
-std::string read_ansi(const std::wstring& path) {
+std::string ansi_path(const std::wstring& path) {
     const int count = WideCharToMultiByte(CP_ACP, 0, path.c_str(), -1, nullptr, 0, nullptr, nullptr);
     if (!count) return {};
     std::string text(static_cast<size_t>(count), '\0');
     WideCharToMultiByte(CP_ACP, 0, path.c_str(), -1, text.data(), count, nullptr, nullptr);
+    return text;
+}
+std::string read_ansi(const std::wstring& path, DWORD flags = FILE_ATTRIBUTE_NORMAL) {
+    const auto text = ansi_path(path);
     return read_handle(CreateFileA(text.c_str(), GENERIC_READ, FILE_SHARE_READ,
-        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        nullptr, OPEN_EXISTING, flags, nullptr));
+}
+bool write_maximum_allowed(const std::wstring& path) {
+    HANDLE file = CreateFileW(path.c_str(), MAXIMUM_ALLOWED, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    constexpr char text[] = "changed";
+    constexpr DWORD length = static_cast<DWORD>(sizeof(text) - 1);
+    DWORD count = 0;
+    const bool ok = WriteFile(file, text, length, &count, nullptr) != FALSE &&
+        count == length && SetEndOfFile(file) != FALSE;
+    CloseHandle(file);
+    return ok;
+}
+bool missing_error(const std::wstring& path, bool ansi) {
+    const auto text = ansi_path(path);
+    SetLastError(ERROR_ACCESS_DENIED); // Must not leak this or overlay lookup errors.
+    HANDLE file = ansi
+        ? CreateFileA(text.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr)
+        : CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    const DWORD error = GetLastError();
+    if (file != INVALID_HANDLE_VALUE) CloseHandle(file);
+    return file == INVALID_HANDLE_VALUE && error == ERROR_FILE_NOT_FOUND;
 }
 bool connect() {
     if (config) return true;
@@ -50,10 +77,20 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wp, LPARAM lp) {
                 if (read_wide(root + L"\\DATA\\FINAL\\missing.wad.client") == "fallback") results |= 4;
                 const auto outside = root + L"-other\\outside.wad.client";
                 if (read_wide(outside) == "outside") results |= 8;
-                if (read_wide(root + L"\\..\\Game-other\\outside.wad.client") == "outside") results |= 16;
+                if (read_wide(root + L"\\..\\Game data-other\\outside.wad.client") == "outside") results |= 16;
                 if (read_wide(root + L"\\settings.json") == "original-settings") results |= 32;
                 if (read_wide(wad, GENERIC_READ | GENERIC_WRITE) == "original") results |= 64;
                 if (read_wide(root + L"\\data\\final\\FIXTURE.WAD.CLIENT") == "custom") results |= 128;
+                const auto locked = root + L"\\DATA\\FINAL\\locked.wad.client";
+                if (read_wide(locked) == "original-locked") results |= 256;
+                if (read_ansi(locked) == "original-locked") results |= 512;
+                if (write_maximum_allowed(root + L"\\DATA\\FINAL\\maximum.wad.client")) results |= 1024;
+                if (read_wide(wad, GENERIC_READ, FILE_FLAG_OPEN_REPARSE_POINT) == "original" &&
+                    read_ansi(wad, FILE_FLAG_OPEN_REPARSE_POINT) == "original") results |= 2048;
+                if (read_wide(root + L"\\DATA\\FINAL\\skin-é-雪.wad.client") == "custom-unicode") results |= 4096;
+                const auto absent = root + L"\\DATA\\FINAL\\absent.wad.client";
+                if (missing_error(absent, false) && missing_error(absent, true)) results |= 8192;
+                if (read_wide(root + L"\\DATA\\FINAL\\overlay-only.wad.client") == "custom-only") results |= 16384;
                 InterlockedExchange(&config->results, static_cast<LONG>(results));
                 InterlockedExchange(&config->stage, 2);
             }

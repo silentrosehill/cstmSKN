@@ -13,15 +13,24 @@ OpenAnsi real_ansi = nullptr;
 cstm::Shared* config = nullptr;
 HANDLE mapping = nullptr;
 std::once_flag installed;
+struct LastError {
+    DWORD code = GetLastError();
+    ~LastError() { SetLastError(code); }
+};
 
-bool read_only(DWORD access, DWORD disposition) {
+bool read_only(DWORD access, DWORD disposition, DWORD flags) {
     constexpr DWORD writing = GENERIC_WRITE | GENERIC_ALL | FILE_WRITE_DATA |
-        FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | DELETE | WRITE_DAC | WRITE_OWNER;
-    return disposition == OPEN_EXISTING && (access & writing) == 0;
+        FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | DELETE | WRITE_DAC | WRITE_OWNER |
+        MAXIMUM_ALLOWED;
+    // Special opens retain their original semantics, even if desired access
+    // looks read-only. MAXIMUM_ALLOWED can grant write/delete access implicitly.
+    constexpr DWORD special = FILE_FLAG_DELETE_ON_CLOSE | FILE_FLAG_OPEN_REPARSE_POINT |
+        FILE_FLAG_BACKUP_SEMANTICS;
+    return disposition == OPEN_EXISTING && (access & writing) == 0 && (flags & special) == 0;
 }
-std::wstring redirect(LPCWSTR input, DWORD access, DWORD disposition) {
+std::wstring redirect(LPCWSTR input, DWORD access, DWORD disposition, DWORD flags) {
     if (!input || !config || InterlockedCompareExchange(&config->enabled, 0, 0) != 1 ||
-        !read_only(access, disposition)) return {};
+        !read_only(access, disposition, flags)) return {};
     const auto path = cstm::full_path(input);
     const std::wstring root = std::wstring(config->game_root) + L"\\";
     if (path.size() <= root.size() ||
@@ -38,19 +47,28 @@ std::wstring redirect(LPCWSTR input, DWORD access, DWORD disposition) {
 }
 HANDLE WINAPI open_wide(LPCWSTR path, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa,
                        DWORD disposition, DWORD flags, HANDLE template_file) {
-    const DWORD incoming_error = GetLastError();
+    LastError error; // Destroyed after temporary strings and their allocations.
     std::wstring replacement;
-    try { replacement = redirect(path, access, disposition); } catch (...) { /* fail open */ }
-    SetLastError(incoming_error);
+    try { replacement = redirect(path, access, disposition, flags); } catch (...) { /* fail open */ }
+    SetLastError(error.code);
     if (!replacement.empty()) {
-        InterlockedIncrement(&config->redirects);
-        return real_wide(replacement.c_str(), access, share, sa, disposition, flags, template_file);
+        HANDLE file = real_wide(replacement.c_str(), access, share, sa, disposition, flags, template_file);
+        if (file != INVALID_HANDLE_VALUE) {
+            error.code = GetLastError();
+            InterlockedIncrement(&config->redirects);
+            return file;
+        }
+        // A replacement can disappear, be locked or become inaccessible after
+        // the metadata check. Preserve the original operation as the fallback.
+        SetLastError(error.code);
     }
-    return real_wide(path, access, share, sa, disposition, flags, template_file);
+    HANDLE file = real_wide(path, access, share, sa, disposition, flags, template_file);
+    error.code = GetLastError();
+    return file;
 }
 HANDLE WINAPI open_ansi(LPCSTR path, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa,
                        DWORD disposition, DWORD flags, HANDLE template_file) {
-    const DWORD incoming_error = GetLastError();
+    LastError error;
     std::wstring replacement;
     try {
         if (path) {
@@ -59,18 +77,32 @@ HANDLE WINAPI open_ansi(LPCSTR path, DWORD access, DWORD share, LPSECURITY_ATTRI
             if (size > 0 && size <= 32768) {
                 std::wstring wide(static_cast<size_t>(size), L'\0');
                 if (MultiByteToWideChar(cp, 0, path, -1, wide.data(), size))
-                    replacement = redirect(wide.c_str(), access, disposition);
+                    replacement = redirect(wide.c_str(), access, disposition, flags);
             }
         }
     } catch (...) { /* fail open */ }
-    SetLastError(incoming_error);
+    SetLastError(error.code);
     if (!replacement.empty()) {
-        InterlockedIncrement(&config->redirects);
-        return real_wide(replacement.c_str(), access, share, sa, disposition, flags, template_file);
+        HANDLE file = real_wide(replacement.c_str(), access, share, sa, disposition, flags, template_file);
+        if (file != INVALID_HANDLE_VALUE) {
+            error.code = GetLastError();
+            InterlockedIncrement(&config->redirects);
+            return file;
+        }
+        SetLastError(error.code);
     }
-    return real_ansi(path, access, share, sa, disposition, flags, template_file);
+    HANDLE file = real_ansi(path, access, share, sa, disposition, flags, template_file);
+    error.code = GetLastError();
+    return file;
 }
 struct Patch { void** slot; void* original; void* replacement; };
+void reject(const wchar_t* message, DWORD code = ERROR_INVALID_DATA) noexcept {
+    if (!config) return;
+    wcsncpy_s(config->error, message, _TRUNCATE);
+    config->error_code = code;
+    InterlockedExchange(&config->enabled, 0);
+    InterlockedExchange(&config->ready, -1);
+}
 bool exchange(void** slot, void* value) {
     DWORD protection = 0;
     if (!VirtualProtect(slot, sizeof(void*), PAGE_READWRITE, &protection)) return false;
@@ -100,27 +132,27 @@ void initialize() {
     if (config->version != cstm::protocol_version || config->size != sizeof(cstm::Shared) ||
         config->pid != GetCurrentProcessId() ||
         !wmemchr(config->game_root, L'\0', 32768) || !wmemchr(config->overlay_root, L'\0', 32768)) {
-        InterlockedExchange(&config->ready, -1);
+        reject(L"Fixture configuration has an incompatible version, size, target or path");
         return;
     }
     // Pin before changing an import address: unhooking the window must never
     // unload a DLL still referenced by an import thunk.
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
         reinterpret_cast<LPCWSTR>(&CstmFixtureHook), &self)) {
-        InterlockedExchange(&config->ready, -1);
+        reject(L"Could not retain the fixture DLL", GetLastError());
         return;
     }
     HMODULE kernel = GetModuleHandleW(L"kernel32.dll");
     real_wide = std::bit_cast<OpenWide>(GetProcAddress(kernel, "CreateFileW"));
     real_ansi = std::bit_cast<OpenAnsi>(GetProcAddress(kernel, "CreateFileA"));
-    if (!real_wide || !real_ansi) { InterlockedExchange(&config->ready, -1); return; }
+    if (!real_wide || !real_ansi) { reject(L"Windows file APIs are unavailable", GetLastError()); return; }
     auto* base = reinterpret_cast<BYTE*>(GetModuleHandleW(nullptr));
     const auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
-    if (dos->e_magic != IMAGE_DOS_SIGNATURE) { InterlockedExchange(&config->ready, -1); return; }
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) { reject(L"Fixture DOS header is invalid"); return; }
     const auto* nt = reinterpret_cast<IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
-    if (nt->Signature != IMAGE_NT_SIGNATURE) { InterlockedExchange(&config->ready, -1); return; }
+    if (nt->Signature != IMAGE_NT_SIGNATURE) { reject(L"Fixture PE header is invalid"); return; }
     const auto imports = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-    if (!imports.VirtualAddress) { InterlockedExchange(&config->ready, -1); return; }
+    if (!imports.VirtualAddress) { reject(L"Fixture has no import table"); return; }
     auto* descriptor = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base + imports.VirtualAddress);
     std::vector<Patch> patches;
     for (; descriptor->Name; ++descriptor) {
@@ -141,7 +173,7 @@ void initialize() {
             }
             if (replacement) {
                 auto** slot = reinterpret_cast<void**>(&addresses->u1.Function);
-                if (*slot != expected) { InterlockedExchange(&config->ready, -1); return; }
+                if (*slot != expected) { reject(L"Fixture file API import was already changed"); return; }
                 patches.push_back({slot, expected, replacement});
             }
         }
@@ -151,11 +183,10 @@ void initialize() {
         wide |= patch.replacement == reinterpret_cast<void*>(&open_wide);
         ansi |= patch.replacement == reinterpret_cast<void*>(&open_ansi);
     }
-    if (!wide || !ansi) { InterlockedExchange(&config->ready, -1); return; }
+    if (!wide || !ansi) { reject(L"Fixture must import both Windows file APIs"); return; }
     for (const auto& patch : patches) {
         if (!exchange(patch.slot, patch.replacement)) {
-            InterlockedExchange(&config->enabled, 0);
-            InterlockedExchange(&config->ready, -1);
+            reject(L"Could not update or protect the fixture import table", GetLastError());
             return;
         }
     }
@@ -165,7 +196,7 @@ void initialize() {
 extern "C" __declspec(dllexport) LRESULT CALLBACK CstmFixtureHook(int code, WPARAM wp, LPARAM lp) {
     if (code >= 0) {
         try { std::call_once(installed, initialize); }
-        catch (...) { if (config) InterlockedExchange(&config->ready, -1); }
+        catch (...) { reject(L"Fixture DLL initialization raised an exception", ERROR_UNHANDLED_EXCEPTION); }
     }
     return CallNextHookEx(nullptr, code, wp, lp);
 }

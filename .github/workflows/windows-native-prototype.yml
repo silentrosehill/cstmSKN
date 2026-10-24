@@ -44,6 +44,8 @@ jobs:
           & native-build/Release/cstm-injector-prototype.exe --pid 1234
           if ($LASTEXITCODE -ne 2) { throw "The fixture host must reject arbitrary target arguments" }
           exit 0
+      - name: Include the prototype source license
+        run: Copy-Item licenses/LTK-MANAGER-LICENSE.md native-build/Release/LICENSE.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: cstmSKN-native-injector-fixture-only
@@ -51,5 +53,6 @@ jobs:
             native-build/Release/cstm-injector-prototype.exe
             native-build/Release/cstm-overlay-prototype.dll
             native-build/Release/cstm-injector-fixture.exe
+            native-build/Release/LICENSE.txt
             native/windows-prototype/README.md
           if-no-files-found: error

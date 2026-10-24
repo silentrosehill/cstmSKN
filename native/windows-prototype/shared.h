@@ -5,13 +5,13 @@
 // This protocol is deliberately restricted to our own child fixture. There is
 // no PID argument, game discovery, or connection to the League patcher path.
 namespace cstm {
-constexpr DWORD protocol_version = 1;
+constexpr DWORD protocol_version = 2;
 constexpr UINT test_reads = WM_APP + 31;
 constexpr UINT test_stopped = WM_APP + 32;
 constexpr UINT test_before = WM_APP + 33;
 constexpr wchar_t fixture_class[] = L"CstmSKNInjectorFixture";
 constexpr wchar_t fixture_name[] = L"cstm-injector-fixture.exe";
-constexpr LONG expected_results = 0xff;
+constexpr LONG expected_results = 0x7fff;
 
 struct Shared {
     DWORD version;
@@ -22,6 +22,7 @@ struct Shared {
     volatile LONG redirects;
     volatile LONG results;
     volatile LONG stage;
+    DWORD error_code;
     wchar_t game_root[32768];
     wchar_t overlay_root[32768];
     wchar_t error[256];

@@ -55,6 +55,7 @@ jobs:
           Copy-Item src-tauri/resources/windows/provenance.json release-windows/engine-provenance.json
           Copy-Item licenses/LTK-PATCHER-LICENSE.md, licenses/LTK-MANAGER-LICENSE.md, licenses/LTK-INTEGRATION-NOTICE.md release-windows/
           Copy-Item WINDOWS.md release-windows/
+          git archive --format=zip --output=release-windows/cstmSKN-Windows-source.zip HEAD
           $installer = Get-Item release-windows/cstmSKN-Windows-x64-setup.exe
           if ($installer.Length -lt 1000000) { throw 'Installer is unexpectedly small' }
           # Portable build: the app plus its engine folder, no installer needed.

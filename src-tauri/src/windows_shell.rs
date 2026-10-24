@@ -61,15 +61,13 @@ pub fn relaunch_if_needed() -> bool {
 
     match shell_execute(&exe, &args, &dir) {
         Ok(()) => {
-            tracing::info!(
-                ?parent,
-                shell,
-                "Restarted the manager as a child of the shell"
+            eprintln!(
+                "[cstmSKN] Restarted through the desktop shell (parent {parent:?}, shell {shell})"
             );
             true
         }
         Err(error) => {
-            tracing::warn!(%error, ?parent, "The manager could not restart through the shell");
+            eprintln!("[cstmSKN] Could not restart through the desktop shell: {error}");
             false
         }
     }

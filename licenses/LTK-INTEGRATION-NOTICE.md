@@ -16,7 +16,7 @@ src-tauri/src/windows_shell.rs is adapted from
 LeagueToolkit/ltk-manager/src-tauri/src/shell_relaunch.rs at revision
 `43782aafd296bceaec4ea2078cb03ecce62fdc9a`, under GPL-3.0-or-later. The normal
 Explorer shell launch is retained; the relaunch argument and test examples are
-named for cstmSKN. LTK-MANAGER-LICENSE.md contains the upstream source license.
+named for cstmSKN, and logging uses cstmSKN's existing stderr approach. LTK-MANAGER-LICENSE.md contains the upstream source license.
 
 Upstream source: https://github.com/LeagueToolkit/ltk-manager
 cstmSKN source, including these adaptations: https://github.com/silentrosehill/cstmSKN

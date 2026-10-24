@@ -124,21 +124,68 @@ fn safe_name(name: &str) -> Result<String, String> {
     Ok(name)
 }
 
+/// A mod's category, from the game files it replaces (not from its name):
+/// - a champion WAD with a language code (`Ahri.ja_JP.wad.client`) holds voice lines, unless
+///   the mod also replaces the champion's own WAD (a skin that brings its own voice);
+/// - a map or common WAD with a language code holds announcer lines;
+/// - a map WAD without one is a map;
+/// - anything else is a skin.
+/// The name only decides between map and announcer, where packs are sometimes built either way.
 fn infer_kind(name: &str, listing: &str) -> &'static str {
-    let text = format!("{} {}", name, listing).to_ascii_lowercase();
-    if text.contains("announcer") {
+    let mut voice = false;
+    let mut announcer = false;
+    let mut map = false;
+    let mut champion_files = false;
+    for line in listing.lines() {
+        let path = line.replace('\\', "/").to_ascii_lowercase();
+        let parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
+        if parts.iter().any(|p| p.contains("announcer")) {
+            announcer = true;
+        }
+        if parts.windows(2).any(|w| w == ["maps", "shipping"]) {
+            map = true;
+        }
+        for part in &parts {
+            let Some(stem) = part
+                .strip_suffix(".wad.client")
+                .or_else(|| part.strip_suffix(".wad"))
+            else {
+                continue;
+            };
+            let mut pieces = stem.split('.');
+            let base = pieces.next().unwrap_or_default();
+            let localized = pieces.next().is_some_and(is_locale);
+            let is_map = base == "common"
+                || (base.starts_with("map")
+                    && base[3..].chars().all(|c| c.is_ascii_digit())
+                    && base.len() > 3);
+            match (is_map, localized) {
+                (true, true) => announcer = true,
+                (true, false) => map = true,
+                (false, true) => voice = true,
+                (false, false) => champion_files = true,
+            }
+        }
+    }
+    if announcer {
         "announcer"
-    } else if text.contains("map11.wad")
-        || text.contains("map12.wad")
-        || text.contains("map21.wad")
-        || text.contains("maps/shipping/")
-    {
-        "map"
-    } else if text.contains("voice") || text.contains("voiceover") {
+    } else if map {
+        if name.to_ascii_lowercase().contains("announcer") {
+            "announcer"
+        } else {
+            "map"
+        }
+    } else if voice && !champion_files {
         "voice"
     } else {
         "skin"
     }
+}
+
+/// A language code as used in WAD names: "en_us", "ja_jp".
+fn is_locale(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 5 && b[2] == b'_' && b[..2].iter().chain(&b[3..]).all(u8::is_ascii_alphabetic)
 }
 
 fn entry(path: &Path) -> CustomEntry {
@@ -417,6 +464,31 @@ mod tests {
         assert_eq!(infer_kind("Winter", "WAD/Map11.wad.client"), "map");
         assert_eq!(infer_kind("JP voice", "WAD/Ahri.ja_JP.wad.client"), "voice");
         assert_eq!(infer_kind("Fox", "WAD/Ahri.wad.client"), "skin");
+        // The name no longer decides: a skin called "voice" is still a skin.
+        assert_eq!(
+            infer_kind("Voice of the Void Kai'Sa", "WAD/Kaisa.wad.client"),
+            "skin"
+        );
+        assert_eq!(
+            infer_kind("Anything", "WAD/Map11.en_US.wad.client"),
+            "announcer"
+        );
+        assert_eq!(
+            infer_kind("Anything", "WAD/Common.ja_JP.wad.client/data/x.bin"),
+            "announcer"
+        );
+        assert_eq!(
+            infer_kind("Anything", "WAD/Map12.wad.client/assets/maps/x.tex"),
+            "map"
+        );
+        assert_eq!(infer_kind("Anything", "Camille.ja_JP.wad.client"), "voice");
+        assert_eq!(
+            infer_kind(
+                "Skin with voice",
+                "WAD/Ahri.wad.client\nWAD/Ahri.en_US.wad.client"
+            ),
+            "skin"
+        );
     }
     #[test]
     fn champion_targets_deduplicate_localized_wads() {

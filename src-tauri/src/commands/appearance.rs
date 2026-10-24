@@ -13,13 +13,22 @@ pub async fn set_sidebar_glass(window: tauri::WebviewWindow, width: f64) -> Resu
     {
         let (sender, mut receiver) = tauri::async_runtime::channel(1);
         let target = window.clone();
-        window.run_on_main_thread(move || {
-            let result = target.ns_window()
-                .map_err(|error| error.to_string())
-                .map(|pointer| unsafe { cstm_set_sidebar_glass(pointer, width.clamp(68.0, 340.0)) != 0 });
-            let _ = sender.try_send(result);
-        }).map_err(|error| error.to_string())?;
-        receiver.recv().await.ok_or_else(|| "Window closed before its material updated".to_string())?
+        window
+            .run_on_main_thread(move || {
+                let result =
+                    target
+                        .ns_window()
+                        .map_err(|error| error.to_string())
+                        .map(|pointer| unsafe {
+                            cstm_set_sidebar_glass(pointer, width.clamp(68.0, 340.0)) != 0
+                        });
+                let _ = sender.try_send(result);
+            })
+            .map_err(|error| error.to_string())?;
+        receiver
+            .recv()
+            .await
+            .ok_or_else(|| "Window closed before its material updated".to_string())?
     }
     #[cfg(not(target_os = "macos"))]
     {

@@ -43,40 +43,57 @@ pub(super) fn sidecar_path(_app: &AppHandle) -> PathBuf {
 
     #[cfg(debug_assertions)]
     {
-    // Dev: binary lives in src-tauri/binaries/ with the target triple suffix
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("binaries")
-        .join(format!("mod-tools-{}", triple))
+        // Dev: binary lives in src-tauri/binaries/ with the target triple suffix
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("binaries")
+            .join(format!("mod-tools-{}", triple))
     }
     #[cfg(not(debug_assertions))]
-    { let _ = triple; PathBuf::from("mod-tools") }
+    {
+        let _ = triple;
+        PathBuf::from("mod-tools")
+    }
 }
 
 fn append_patch_log(path: &Path, message: &str) {
     static LOG_LOCK: Mutex<()> = Mutex::new(());
     let _lock = LOG_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
-        let seconds = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        let seconds = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         let _ = writeln!(file, "[{}] {}", seconds, message);
     }
 }
 
 fn game_patch_error(line: &str) -> Option<String> {
     if line.starts_with("[patcher] failed for pid=") {
-        Some(format!("Game patch failed: {}", line.split_once(": ").map(|(_, detail)| detail).unwrap_or(line)))
-    } else { None }
+        Some(format!(
+            "Game patch failed: {}",
+            line.split_once(": ")
+                .map(|(_, detail)| detail)
+                .unwrap_or(line)
+        ))
+    } else {
+        None
+    }
 }
 
 fn preserve_game_failure(current: &PatcherStatus, next: PatcherStatus) -> PatcherStatus {
     if matches!(current, PatcherStatus::Error(_)) && next == PatcherStatus::WaitingForGame {
         current.clone()
-    } else { next }
+    } else {
+        next
+    }
 }
 
 #[tauri::command]
 pub fn get_patcher_log(app: AppHandle) -> Result<String, String> {
     let path = work_dir(&app).join("patcher.log");
-    if !path.exists() { return Ok("No patcher attempts recorded yet.".to_string()); }
+    if !path.exists() {
+        return Ok("No patcher attempts recorded yet.".to_string());
+    }
     let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let mut lines: Vec<&str> = content.lines().rev().take(250).collect();
     lines.reverse();
@@ -162,10 +179,21 @@ fn start_apply(
 
     let base = work_dir(&app);
     let log_path = base.join("patcher.log");
-    if fs::metadata(&log_path).map(|m| m.len() > 512 * 1024).unwrap_or(false) {
+    if fs::metadata(&log_path)
+        .map(|m| m.len() > 512 * 1024)
+        .unwrap_or(false)
+    {
         let _ = fs::rename(&log_path, base.join("patcher.previous.log"));
     }
-    append_patch_log(&log_path, &format!("Apply generation {}: {} files; game={}", gen, zip_paths.len(), game_path));
+    append_patch_log(
+        &log_path,
+        &format!(
+            "Apply generation {}: {} files; game={}",
+            gen,
+            zip_paths.len(),
+            game_path
+        ),
+    );
 
     std::thread::spawn(move || {
         // Serialize the whole setup so two patchers can never run at once. This
@@ -218,9 +246,15 @@ fn start_apply(
             }
         }
 
-        if let Err(e) =
-            do_apply_skins_bg(binary, base, game_path, zip_paths, state.clone(), gen, setup_guard)
-        {
+        if let Err(e) = do_apply_skins_bg(
+            binary,
+            base,
+            game_path,
+            zip_paths,
+            state.clone(),
+            gen,
+            setup_guard,
+        ) {
             append_patch_log(&log_path, &format!("Setup failed: {}", e));
             if let Ok(mut s) = state.lock() {
                 if s.patcher_gen == gen {
@@ -258,7 +292,9 @@ fn do_apply_skins_bg(
     // Step 1: Import all skins
     let mut mod_names = Vec::new();
     for (i, zip_path) in zip_paths.iter().enumerate() {
-        if state.lock().map_err(|e| e.to_string())?.patcher_gen != gen { return Ok(()); }
+        if state.lock().map_err(|e| e.to_string())?.patcher_gen != gen {
+            return Ok(());
+        }
         let mod_name = format!("mod_{}", i);
         let mod_dir = installed_dir.join(&mod_name);
 
@@ -303,7 +339,9 @@ fn do_apply_skins_bg(
     })?;
 
     // Cancellation can arrive while import or overlay creation is in progress.
-    if state.lock().map_err(|e| e.to_string())?.patcher_gen != gen { return Ok(()); }
+    if state.lock().map_err(|e| e.to_string())?.patcher_gen != gen {
+        return Ok(());
+    }
 
     // Step 3: Run patcher
     {
@@ -359,12 +397,14 @@ fn do_apply_skins_bg(
             let reader = BufReader::new(out);
             for line in reader.lines().map_while(Result::ok) {
                 append_patch_log(&stdout_log, &line);
-                eprintln!("[zushi] mod-tools: {}", line);
+                eprintln!("[cstmSKN] mod-tools: {}", line);
                 if let Some(status_msg) = line.strip_prefix("Status: ") {
                     let new_status = match status_msg {
                         "Waiting for league match to start" => Some(PatcherStatus::WaitingForGame),
                         "Found League" => Some(PatcherStatus::FoundGame),
-                        "Scanning" | "Wait initialized" | "Saving" | "Wait patchable" => Some(PatcherStatus::Scanning),
+                        "Scanning" | "Wait initialized" | "Saving" | "Wait patchable" => {
+                            Some(PatcherStatus::Scanning)
+                        }
                         "Patching" => Some(PatcherStatus::Patching),
                         "Waiting for exit" => Some(PatcherStatus::InGame),
                         "League exited" => Some(PatcherStatus::GameExited),
@@ -392,12 +432,16 @@ fn do_apply_skins_bg(
                 append_patch_log(&stderr_log, &line);
                 if let Some(error) = game_patch_error(&line) {
                     if let Ok(mut s) = stderr_state.lock() {
-                        if s.patcher_gen == gen { s.patcher_status = PatcherStatus::Error(error); }
+                        if s.patcher_gen == gen {
+                            s.patcher_status = PatcherStatus::Error(error);
+                        }
                     }
                 }
-                if tail.len() >= 12 { tail.pop_front(); }
+                if tail.len() >= 12 {
+                    tail.pop_front();
+                }
                 tail.push_back(line.clone());
-                eprintln!("[zushi] mod-tools err: {}", line);
+                eprintln!("[cstmSKN] mod-tools err: {}", line);
             }
         }
         tail.into_iter().collect::<Vec<_>>().join("\n")
@@ -418,17 +462,26 @@ fn do_apply_skins_bg(
                     format!("exit code {}", code)
                 } else if let Some(sig) = exit_status.signal() {
                     let name = match sig {
-                        1 => "SIGHUP", 2 => "SIGINT", 3 => "SIGQUIT", 6 => "SIGABRT",
-                        9 => "SIGKILL", 10 => "SIGBUS", 11 => "SIGSEGV", 13 => "SIGPIPE",
-                        15 => "SIGTERM", _ => "?",
+                        1 => "SIGHUP",
+                        2 => "SIGINT",
+                        3 => "SIGQUIT",
+                        6 => "SIGABRT",
+                        9 => "SIGKILL",
+                        10 => "SIGBUS",
+                        11 => "SIGSEGV",
+                        13 => "SIGPIPE",
+                        15 => "SIGTERM",
+                        _ => "?",
                     };
                     format!("killed by signal {} ({})", sig, name)
                 } else {
                     "unknown".to_string()
                 };
-                eprintln!("[zushi] mod-tools runoverlay exited: {}", detail);
-                s.patcher_status =
-                    PatcherStatus::Error(format!("Patcher exited unexpectedly ({}). {}", detail, stderr_tail));
+                eprintln!("[cstmSKN] mod-tools runoverlay exited: {}", detail);
+                s.patcher_status = PatcherStatus::Error(format!(
+                    "Patcher exited unexpectedly ({}). {}",
+                    detail, stderr_tail
+                ));
             } else {
                 s.patcher_status = PatcherStatus::Idle;
             }
@@ -453,24 +506,36 @@ pub async fn stop_patcher(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
         let _guard = apply_setup_lock().lock().unwrap_or_else(|e| e.into_inner());
         let mut s = shared.lock().map_err(|e| e.to_string())?;
         // A newer apply supersedes this stop; it owns the previous tracer now.
-        if s.patcher_gen != stop_gen { return Ok(()); }
-        if let Some(mut pipe) = s.patcher_stdin.take() { let _ = pipe.write_all(b"\n"); }
+        if s.patcher_gen != stop_gen {
+            return Ok(());
+        }
+        if let Some(mut pipe) = s.patcher_stdin.take() {
+            let _ = pipe.write_all(b"\n");
+        }
         let pid = s.patcher_pid;
         drop(s);
         if let Some(pid) = pid {
             let gone = |timeout: u64| {
                 let end = std::time::Instant::now() + std::time::Duration::from_millis(timeout);
                 while unsafe { libc::kill(pid as i32, 0) } == 0 {
-                    if std::time::Instant::now() >= end { return false; }
+                    if std::time::Instant::now() >= end {
+                        return false;
+                    }
                     std::thread::sleep(std::time::Duration::from_millis(20));
                 }
                 true
             };
             if !gone(3000) {
-                unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+                unsafe {
+                    libc::kill(pid as i32, libc::SIGTERM);
+                }
                 if !gone(1500) {
-                    unsafe { libc::kill(pid as i32, libc::SIGKILL); }
-                    if !gone(2000) { return Err("Patcher did not stop. Try again before updating.".into()); }
+                    unsafe {
+                        libc::kill(pid as i32, libc::SIGKILL);
+                    }
+                    if !gone(2000) {
+                        return Err("Patcher did not stop. Try again before updating.".into());
+                    }
                 }
             }
         }
@@ -480,7 +545,9 @@ pub async fn stop_patcher(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
             s.patcher_status = PatcherStatus::Idle;
         }
         Ok(())
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -511,11 +578,15 @@ pub fn clear_work_dir(
     let base = work_dir(&app);
     for name in ["installed", "overlay"] {
         if let Err(e) = fs::remove_dir_all(base.join(name)) {
-            if e.kind() != std::io::ErrorKind::NotFound { return Err(e.to_string()); }
+            if e.kind() != std::io::ErrorKind::NotFound {
+                return Err(e.to_string());
+            }
         }
     }
     if let Err(e) = fs::remove_file(base.join("config")) {
-        if e.kind() != std::io::ErrorKind::NotFound { return Err(e.to_string()); }
+        if e.kind() != std::io::ErrorKind::NotFound {
+            return Err(e.to_string());
+        }
     }
     Ok(())
 }
@@ -528,39 +599,135 @@ mod diagnostics_tests {
     #[test]
     fn failure_remains_visible_when_engine_goes_back_to_waiting() {
         let failed = PatcherStatus::Error("task_for_pid".to_string());
-        assert_eq!(preserve_game_failure(&failed, PatcherStatus::WaitingForGame), failed);
-        assert_eq!(preserve_game_failure(&failed, PatcherStatus::FoundGame), PatcherStatus::FoundGame);
+        assert_eq!(
+            preserve_game_failure(&failed, PatcherStatus::WaitingForGame),
+            failed
+        );
+        assert_eq!(
+            preserve_game_failure(&failed, PatcherStatus::FoundGame),
+            PatcherStatus::FoundGame
+        );
     }
     #[test]
     fn parses_real_engine_error_and_ignores_normal_progress() {
-        assert_eq!(game_patch_error("[patcher] failed for pid=123: Failed to find wad_verify call"), Some("Game patch failed: Failed to find wad_verify call".into()));
+        assert_eq!(
+            game_patch_error("[patcher] failed for pid=123: Failed to find wad_verify call"),
+            Some("Game patch failed: Failed to find wad_verify call".into())
+        );
         assert!(game_patch_error("[patcher] patched pid=123").is_none());
     }
 }
 
 #[derive(serde::Serialize)]
-pub struct HealthCheck { id: &'static str, label: &'static str, state: &'static str, detail: String }
+pub struct HealthCheck {
+    id: &'static str,
+    label: &'static str,
+    state: &'static str,
+    detail: String,
+}
 
 #[tauri::command]
-pub async fn get_patcher_health(app: AppHandle, state: State<'_, Arc<Mutex<AppState>>>, paths: Vec<String>) -> Result<Vec<HealthCheck>, String> {
-    let (game, status) = { let s = state.lock().map_err(|e| e.to_string())?; (s.game_path.clone(), s.patcher_status.clone()) };
+pub async fn get_patcher_health(
+    app: AppHandle,
+    state: State<'_, Arc<Mutex<AppState>>>,
+    paths: Vec<String>,
+) -> Result<Vec<HealthCheck>, String> {
+    let (game, status) = {
+        let s = state.lock().map_err(|e| e.to_string())?;
+        (s.game_path.clone(), s.patcher_status.clone())
+    };
     let binary = sidecar_path(&app);
     let base = work_dir(&app);
     tauri::async_runtime::spawn_blocking(move || {
         use std::os::unix::fs::PermissionsExt;
-        let check = |id, label, ok, detail: String| HealthCheck { id, label, state: if ok { "ok" } else { "error" }, detail };
-        let valid_game = game.as_deref().map(|p| Path::new(p).join("LeagueofLegends.app").is_dir() && Path::new(p).join("DATA/FINAL").is_dir()).unwrap_or(false);
-        let executable = fs::metadata(&binary).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false);
-        let writable = std::ffi::CString::new(base.to_string_lossy().as_bytes()).map(|path| unsafe { libc::access(path.as_ptr(), libc::W_OK) == 0 }).unwrap_or(false);
-        let missing: Vec<_> = paths.iter().filter(|p| !Path::new(p).is_file()).filter_map(|p| Path::new(p).file_name()).map(|p| p.to_string_lossy().into_owned()).collect();
-        let engine_error = match status { PatcherStatus::Error(error) => Some(error), _ => None };
+        let check = |id, label, ok, detail: String| HealthCheck {
+            id,
+            label,
+            state: if ok { "ok" } else { "error" },
+            detail,
+        };
+        let valid_game = game
+            .as_deref()
+            .map(|p| {
+                Path::new(p).join("LeagueofLegends.app").is_dir()
+                    && Path::new(p).join("DATA/FINAL").is_dir()
+            })
+            .unwrap_or(false);
+        let executable = fs::metadata(&binary)
+            .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false);
+        let writable = std::ffi::CString::new(base.to_string_lossy().as_bytes())
+            .map(|path| unsafe { libc::access(path.as_ptr(), libc::W_OK) == 0 })
+            .unwrap_or(false);
+        let missing: Vec<_> = paths
+            .iter()
+            .filter(|p| !Path::new(p).is_file())
+            .filter_map(|p| Path::new(p).file_name())
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        let engine_error = match status {
+            PatcherStatus::Error(error) => Some(error),
+            _ => None,
+        };
         Ok(vec![
-            check("game", "League installation", valid_game, if valid_game { "Game files found.".into() } else { "Choose your League installation in Settings.".into() }),
-            check("engine", "Patcher engine", executable, if executable { "Engine is installed and executable.".into() } else { "Reinstall cstmSKN to restore its patcher engine.".into() }),
-            check("permissions", "Game access", crate::running_as_root(), if crate::running_as_root() { "Administrator access is available.".into() } else { "Reopen cstmSKN and allow macOS administrator access.".into() }),
-            check("storage", "Mod storage", writable, if writable { "Storage is accessible.".into() } else { "Reopen cstmSKN with administrator access.".into() }),
-            check("selection", "Selected files", missing.is_empty(), if missing.is_empty() { "Selected mod files are available.".into() } else { format!("Download or import again: {}", missing.join(", ")) }),
-            check("session", "Patcher session", engine_error.is_none(), engine_error.unwrap_or_else(|| "No current patcher errors.".into())),
+            check(
+                "game",
+                "League installation",
+                valid_game,
+                if valid_game {
+                    "Game files found.".into()
+                } else {
+                    "Choose your League installation in Settings.".into()
+                },
+            ),
+            check(
+                "engine",
+                "Patcher engine",
+                executable,
+                if executable {
+                    "Engine is installed and executable.".into()
+                } else {
+                    "Reinstall cstmSKN to restore its patcher engine.".into()
+                },
+            ),
+            check(
+                "permissions",
+                "Game access",
+                crate::running_as_root(),
+                if crate::running_as_root() {
+                    "Administrator access is available.".into()
+                } else {
+                    "Reopen cstmSKN and allow macOS administrator access.".into()
+                },
+            ),
+            check(
+                "storage",
+                "Mod storage",
+                writable,
+                if writable {
+                    "Storage is accessible.".into()
+                } else {
+                    "Reopen cstmSKN with administrator access.".into()
+                },
+            ),
+            check(
+                "selection",
+                "Selected files",
+                missing.is_empty(),
+                if missing.is_empty() {
+                    "Selected mod files are available.".into()
+                } else {
+                    format!("Download or import again: {}", missing.join(", "))
+                },
+            ),
+            check(
+                "session",
+                "Patcher session",
+                engine_error.is_none(),
+                engine_error.unwrap_or_else(|| "No current patcher errors.".into()),
+            ),
         ])
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

@@ -55,19 +55,33 @@ mod mac_auth {
             authorized_rights: *mut *mut AuthorizationItemSet,
         ) -> OSStatus;
 
-        pub fn AuthorizationFree(
-            authorization: AuthorizationRef,
-            flags: u32,
-        ) -> OSStatus;
+        pub fn AuthorizationFree(authorization: AuthorizationRef, flags: u32) -> OSStatus;
 
-        pub fn AuthorizationExecuteWithPrivileges(
-            authorization: AuthorizationRef,
-            path_to_tool: *const c_char,
-            options: u32,
-            arguments: *const *const c_char,
-            communications_pipe: *mut *mut c_void,
-        ) -> OSStatus;
     }
+
+    /// AuthorizationExecuteWithPrivileges has been deprecated since macOS 10.7. It is
+    /// looked up at runtime instead of linked, so a macOS that drops it still launches
+    /// the app (and falls back to the system administrator prompt).
+    pub type ExecuteWithPrivileges = unsafe extern "C" fn(
+        authorization: AuthorizationRef,
+        path_to_tool: *const c_char,
+        options: u32,
+        arguments: *const *const c_char,
+        communications_pipe: *mut *mut c_void,
+    ) -> OSStatus;
+
+    pub fn execute_with_privileges() -> Option<ExecuteWithPrivileges> {
+        let name = b"AuthorizationExecuteWithPrivileges\0";
+        let symbol = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr() as *const c_char) };
+        if symbol.is_null() {
+            None
+        } else {
+            Some(unsafe { std::mem::transmute::<*mut c_void, ExecuteWithPrivileges>(symbol) })
+        }
+    }
+
+    /// The user closed the password dialog.
+    pub const CANCELED: OSStatus = -60006;
 
     extern "C" {
         pub fn fileno(stream: *mut c_void) -> c_int;
@@ -96,7 +110,10 @@ fn relaunch_as_admin() {
             &mut auth,
         );
         if status != mac_auth::SUCCESS {
-            eprintln!("[zushi] AuthorizationCreate failed ({}), falling back to osascript", status);
+            eprintln!(
+                "[cstmSKN] AuthorizationCreate failed ({}), falling back to osascript",
+                status
+            );
             relaunch_via_osascript();
             return;
         }
@@ -117,15 +134,10 @@ fn relaunch_as_admin() {
             | mac_auth::FLAGS_INTERACTION_ALLOWED
             | mac_auth::FLAGS_EXTEND_RIGHTS;
 
-        let status = mac_auth::AuthorizationCopyRights(
-            auth,
-            &rights,
-            ptr::null(),
-            flags,
-            ptr::null_mut(),
-        );
+        let status =
+            mac_auth::AuthorizationCopyRights(auth, &rights, ptr::null(), flags, ptr::null_mut());
         if status != mac_auth::SUCCESS {
-            eprintln!("[zushi] Authorization denied or cancelled ({})", status);
+            eprintln!("[cstmSKN] Authorization denied or cancelled ({})", status);
             mac_auth::AuthorizationFree(auth, mac_auth::FLAGS_DESTROY_RIGHTS);
             std::process::exit(1);
         }
@@ -141,8 +153,13 @@ fn relaunch_as_admin() {
 
         let mut pipe: *mut c_void = ptr::null_mut();
 
-        #[allow(deprecated)]
-        let status = mac_auth::AuthorizationExecuteWithPrivileges(
+        let Some(execute) = mac_auth::execute_with_privileges() else {
+            eprintln!("[cstmSKN] Privileged launch is unavailable on this macOS, falling back to osascript");
+            mac_auth::AuthorizationFree(auth, mac_auth::FLAGS_DESTROY_RIGHTS);
+            relaunch_via_osascript();
+            return;
+        };
+        let status = execute(
             auth,
             exe_cstr.as_ptr(),
             mac_auth::FLAGS_DEFAULTS,
@@ -151,12 +168,19 @@ fn relaunch_as_admin() {
         );
 
         if status != mac_auth::SUCCESS {
-            eprintln!("[zushi] AuthorizationExecuteWithPrivileges failed ({})", status);
+            eprintln!(
+                "[cstmSKN] Privileged launch failed ({}), falling back to osascript",
+                status
+            );
             mac_auth::AuthorizationFree(auth, mac_auth::FLAGS_DESTROY_RIGHTS);
-            std::process::exit(1);
+            if status == mac_auth::CANCELED {
+                std::process::exit(1);
+            }
+            relaunch_via_osascript();
+            return;
         }
 
-        eprintln!("[zushi] Root process launched, waiting...");
+        eprintln!("[cstmSKN] Root process launched, waiting...");
 
         // Wait for the root process to exit by reading from the pipe until EOF
         if !pipe.is_null() {
@@ -184,7 +208,10 @@ fn relaunch_via_osascript() {
     let quote = |value: &str| format!("'{}'", value.replace('\'', "'\\''"));
     let shell_cmd = format!(
         "cd / && HOME={} USER={} {} --user-home {}",
-        quote(&home), quote(&user), quote(&exe.to_string_lossy()), quote(&home)
+        quote(&home),
+        quote(&user),
+        quote(&exe.to_string_lossy()),
+        quote(&home)
     );
     let osa_escaped = shell_cmd.replace('\\', "\\\\").replace('"', "\\\"");
     let applescript = format!(
@@ -192,7 +219,7 @@ fn relaunch_via_osascript() {
         osa_escaped
     );
 
-    eprintln!("[zushi] Falling back to osascript relaunch");
+    eprintln!("[cstmSKN] Falling back to osascript relaunch");
 
     let status = std::process::Command::new("osascript")
         .arg("-e")
@@ -229,16 +256,26 @@ fn console_user_home() -> Option<String> {
             .unwrap_or_default()
     };
 
-    let user = out("/usr/bin/stat", &["-f", "%Su", "/dev/console"]).trim().to_string();
+    let user = out("/usr/bin/stat", &["-f", "%Su", "/dev/console"])
+        .trim()
+        .to_string();
     if user.is_empty() || user == "root" {
         return None;
     }
 
-    let home = out("/usr/bin/dscl", &[".", "-read", &format!("/Users/{}", user), "NFSHomeDirectory"])
-        .split_whitespace()
-        .last()
-        .unwrap_or_default()
-        .to_string();
+    let home = out(
+        "/usr/bin/dscl",
+        &[
+            ".",
+            "-read",
+            &format!("/Users/{}", user),
+            "NFSHomeDirectory",
+        ],
+    )
+    .split_whitespace()
+    .last()
+    .unwrap_or_default()
+    .to_string();
 
     Some(home).filter(|h| is_user_home(h))
 }
@@ -252,11 +289,14 @@ fn adopt_user_home() {
 
     match home {
         Some(home) => {
-            eprintln!("[zushi] App data dir: {}/{}", home, APP_DATA_SUBDIR);
+            eprintln!("[cstmSKN] App data dir: {}/{}", home, APP_DATA_SUBDIR);
             std::env::set_var("HOME", &home);
             migrate_root_app_data(&home);
         }
-        None => eprintln!("[zushi] No user home found, app data stays under {}", ROOT_HOME),
+        None => eprintln!(
+            "[cstmSKN] No user home found, app data stays under {}",
+            ROOT_HOME
+        ),
     }
 }
 
@@ -275,8 +315,16 @@ fn migrate_root_app_data(home: &str) {
         std::fs::create_dir_all(parent).ok();
     }
     match std::fs::rename(&old, &new) {
-        Ok(()) => eprintln!("[zushi] Moved app data from {} to {}", old.display(), new.display()),
-        Err(e) => eprintln!("[zushi] Failed to move app data from {}: {}", old.display(), e),
+        Ok(()) => eprintln!(
+            "[cstmSKN] Moved app data from {} to {}",
+            old.display(),
+            new.display()
+        ),
+        Err(e) => eprintln!(
+            "[cstmSKN] Failed to move app data from {}: {}",
+            old.display(),
+            e
+        ),
     }
 }
 
@@ -288,19 +336,30 @@ pub fn run() {
         return;
     }
 
-    eprintln!("[zushi] Running as root (euid=0)");
+    eprintln!("[cstmSKN] Running as root (euid=0)");
 
     adopt_user_home();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .setup(|app| {
+            // "Open at login" stores the executable's path. Rewrite it so it follows the
+            // app across updates (the executable used to be named "zushi").
+            use tauri_plugin_autostart::ManagerExt;
+            let launcher = app.autolaunch();
+            if launcher.is_enabled().unwrap_or(false) {
+                if let Err(e) = launcher.disable().and_then(|_| launcher.enable()) {
+                    eprintln!("[cstmSKN] Could not refresh the login item: {}", e);
+                }
+            }
+            Ok(())
+        })
         .manage(Arc::new(Mutex::new(AppState::default())))
         .invoke_handler(tauri::generate_handler![
             commands::appearance::set_sidebar_glass,

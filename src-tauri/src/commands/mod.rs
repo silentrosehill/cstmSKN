@@ -1,6 +1,6 @@
 pub mod appearance;
-pub mod customs;
 pub mod client;
+pub mod customs;
 pub mod game_path;
 pub mod patcher;
 pub mod skins;
@@ -16,7 +16,7 @@ pub fn open_url(url: String) -> Result<(), String> {
         return Err("Only secure web links can be opened".into());
     }
     // stat -f '%Su' /dev/console gives the user who owns the GUI session.
-    let real_user = Command::new("stat")
+    let real_user = Command::new("/usr/bin/stat")
         .args(["-f", "%Su", "/dev/console"])
         .output()
         .ok()
@@ -25,7 +25,7 @@ pub fn open_url(url: String) -> Result<(), String> {
         .unwrap_or_default();
 
     if !real_user.is_empty() && real_user != "root" {
-        Command::new("sudo")
+        Command::new("/usr/bin/sudo")
             .args(["-u", &real_user, "/usr/bin/open", "--", &url])
             .spawn()
             .map_err(|e| e.to_string())?;

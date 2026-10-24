@@ -63,4 +63,6 @@ impl std::fmt::Debug for AppState {
     }
 }
 
-fn default_mod_kind() -> String { "skin".into() }
+fn default_mod_kind() -> String {
+    "skin".into()
+}

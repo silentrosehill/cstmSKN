@@ -35,3 +35,7 @@ ltk_overlay = "=0.17.0"
 # Match LTK Manager's own lockfile: zip 2.6 changes the ZipFile reader API.
 zip_ltk = { package = "zip", version = "=2.4.2" }
 winreg = "0.55"
+
+# GPL LTK desktop shell-launch adapter (normal Explorer COM activation).
+windows = { version = "0.61", features = ["Win32_System_Com", "Win32_System_Ole", "Win32_System_Variant", "Win32_UI_Shell"] }
+windows-sys = { version = "0.59", features = ["Wdk_System_Threading", "Win32_Foundation", "Win32_Security", "Win32_System_Environment", "Win32_System_Kernel", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }

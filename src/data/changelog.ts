@@ -1,5 +1,16 @@
 export const CHANGELOG = [
   {
+    version: "1.0.1",
+    title: "Steadier under the hood",
+    changes: [
+      "Large skins now finish downloading on slow connections.",
+      "Imported mods are sorted by what they change, so a skin with \"voice\" in its name stays a skin.",
+      "If macOS can't show the usual password prompt, cstmSKN asks with the standard system prompt instead of closing.",
+      "The app's own program is now named cstmSKN, and Open at login follows the new name.",
+      "Removed unused leftovers and tidied the code.",
+    ],
+  },
+  {
     version: "0.1.24",
     title: "A smoother, safer cstmSKN",
     changes: [

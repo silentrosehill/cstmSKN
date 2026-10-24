@@ -4,6 +4,7 @@ export type PatcherStatus =
   | "Idle"
   | "Importing"
   | "BuildingOverlay"
+  | "StartingEngine"
   | "WaitingForGame"
   | "FoundGame"
   | "Scanning"

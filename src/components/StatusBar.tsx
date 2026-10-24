@@ -25,6 +25,8 @@ function getStatusInfo(s: PatcherStatus): { label: string; dotClass: string; spi
       return { label: "Importing mods...", dotClass: "bg-gold-400 animate-pulse", spinner: true };
     case "BuildingOverlay":
       return { label: "Building overlay...", dotClass: "bg-gold-400 animate-pulse", spinner: true };
+    case "StartingEngine":
+      return { label: "Starting engine…", dotClass: "bg-gold-400 animate-pulse", spinner: true };
     case "WaitingForGame":
       return { label: "Waiting for game...", dotClass: "bg-gold-400 animate-pulse", spinner: true };
     case "FoundGame":

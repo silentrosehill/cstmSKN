@@ -240,6 +240,13 @@ fn start(
             let elevate = super::engine::should_elevate(&app);
             log(
                 &logfile,
+                &format!(
+                    "Windows permissions: cstmSKN elevated={}; requesting engine UAC={elevate}",
+                    super::engine::app_is_elevated(),
+                ),
+            );
+            log(
+                &logfile,
                 if elevate {
                     "Starting LTK host with --elevate (administrator mode)."
                 } else {
@@ -247,6 +254,7 @@ fn start(
                 },
             );
             let mut command = Command::new(resource.join("ltk_patcher_host.exe"));
+            update(&state, generation, PatcherStatus::StartingEngine);
             if elevate {
                 command.arg("--elevate");
             }
@@ -257,7 +265,11 @@ fn start(
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
-                .map_err(|e| format!("Could not start LTK: {e}"))?;
+                .map_err(|e| {
+                    e.raw_os_error()
+                        .and_then(|code| crate::ltk_protocol::loader_error(code as u32))
+                        .unwrap_or_else(|| format!("Could not start LTK: {e}"))
+                })?;
             if let Err(e) = child
                 .stdin
                 .as_mut()
@@ -288,7 +300,7 @@ fn start(
             if let Ok(mut s) = state.lock() {
                 s.patcher_pid = Some(pid);
             }
-            update(&state, generation, PatcherStatus::WaitingForGame);
+            let startup_deadline = Instant::now() + Duration::from_secs(15);
             drop(_setup);
             let output_state = state.clone();
             let output_log = logfile.clone();
@@ -317,6 +329,15 @@ fn start(
                 if let Some(stderr) = stderr {
                     for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                         log(&error_log, &line);
+                        if let Some(pid) = crate::ltk_protocol::hook_target_pid(&line) {
+                            log(
+                                &error_log,
+                                &format!(
+                                    "Hook failure context: {}",
+                                    crate::windows_shell::describe_target(pid)
+                                ),
+                            );
+                        }
                         // stderr is diagnostic-only: do not let lifecycle chatter
                         // on this stream overwrite stdout's session state.
                         if let Some(next @ PatcherStatus::Error(_)) =
@@ -342,16 +363,19 @@ fn start(
                     break;
                 };
                 if let Some(exit) = active.child.try_wait().map_err(|e| e.to_string())? {
+                    log(&logfile, &format!("LTK host exit: {exit}"));
                     slot.take();
                     let mut s = state.lock().map_err(|e| e.to_string())?;
                     if s.patcher_gen == generation {
                         s.patcher_pid = None;
                         if !matches!(s.patcher_status, PatcherStatus::Error(_)) {
-                            s.patcher_status = if exit.success() {
+                            s.patcher_status = if exit.success()
+                                && s.patcher_status != PatcherStatus::StartingEngine
+                            {
                                 PatcherStatus::Idle
                             } else {
-                                PatcherStatus::Error(format!(
-                                    "LTK host exited ({exit}). Check patcher diagnostics."
+                                PatcherStatus::Error(crate::ltk_protocol::host_exit_error(
+                                    exit.code(),
                                 ))
                             };
                         }
@@ -359,6 +383,25 @@ fn start(
                     break;
                 }
                 drop(slot);
+                let startup_timed_out = Instant::now() >= startup_deadline
+                    && state.lock().map_err(|e| e.to_string())?.patcher_status
+                        == PatcherStatus::StartingEngine;
+                if startup_timed_out {
+                    update(&state, generation, PatcherStatus::Error(
+                        "The LTK engine did not finish starting. No skins were applied. Check patcher diagnostics and any Windows security notification.".into(),
+                    ));
+                    log(
+                        &logfile,
+                        "LTK startup timed out before its scanning acknowledgement.",
+                    );
+                    stop_host_for(Some(generation))?;
+                    if let Ok(mut s) = state.lock() {
+                        if s.patcher_gen == generation {
+                            s.patcher_pid = None;
+                        }
+                    }
+                    break;
+                }
                 std::thread::sleep(Duration::from_millis(200));
             }
             let _ = output.join();
@@ -465,6 +508,19 @@ pub async fn get_patcher_health(
         (s.game_path.clone(), s.patcher_status.clone())
     };
     let resources = resources(&app)?;
+    let permissions = format!(
+        "cstmSKN token: {}. Engine: {}.",
+        if super::engine::app_is_elevated() {
+            "administrator"
+        } else {
+            "standard user"
+        },
+        if super::engine::should_elevate(&app) {
+            "will request UAC elevation when started"
+        } else {
+            "inherits cstmSKN permissions"
+        },
+    );
     let data = base(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let check = |id, label, ok, detail: &str| HealthCheck {
@@ -507,12 +563,7 @@ pub async fn get_patcher_health(
                     "Reinstall the Windows preview."
                 },
             ),
-            check(
-                "permissions",
-                "Game access",
-                true,
-                "Runs as your Windows user; administrator mode is not required.",
-            ),
+            check("permissions", "Game access", true, &permissions),
             check(
                 "storage",
                 "Mod storage",

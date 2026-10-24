@@ -3,6 +3,8 @@ mod commands;
 #[cfg(any(target_os = "windows", test))]
 mod ltk_protocol;
 mod state;
+#[cfg(target_os = "windows")]
+mod windows_shell;
 
 use state::AppState;
 use std::sync::{Arc, Mutex};
@@ -346,6 +348,22 @@ fn migrate_root_app_data(home: &str) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        // Set once, before worker threads/children are created. Children inherit
+        // this reporting mode, so loader failures return to the host instead of
+        // hanging behind a system modal. This does not change code-integrity
+        // enforcement, trust, or Windows security settings.
+        use windows_sys::Win32::System::Diagnostics::Debug::{
+            GetErrorMode, SetErrorMode, SEM_FAILCRITICALERRORS,
+        };
+        SetErrorMode(GetErrorMode() | SEM_FAILCRITICALERRORS);
+    }
+    // Match the normal shell launch used by LTK's own desktop application.
+    #[cfg(all(target_os = "windows", not(debug_assertions)))]
+    if windows_shell::relaunch_if_needed() {
+        return;
+    }
     #[cfg(target_os = "macos")]
     {
         // mod-tools needs root for task_for_pid on macOS.

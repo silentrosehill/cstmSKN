@@ -1,0 +1,11 @@
+{
+  "version": "1.0.3",
+  "notes": "## cstmSKN 1.0.3 for Windows (preview)\n\n- **Skins now apply in game on Windows**, using cstmSKN's own bundled engine. No second app needed.\n- The installed app now updates itself (Settings → Software Update), like the Mac version.\n- Works when League runs as administrator.\n\n### How to install\n\n1. Download **cstmSKN-Windows-x64-setup.exe** below.\n2. Open it. If Windows shows \"Windows protected your PC\", click **More info**, then **Run anyway**.\n3. Open cstmSKN from the Start menu. Don't run it as administrator.\n\n### Or use it without installing\n\nDownload **cstmSKN-Windows-x64-portable.zip**, extract it anywhere, and run **cstmSKN.exe** (keep the `ltk` folder next to it). The portable build doesn't self-update; grab new versions here. Windows 11 already has what it needs; on an older PC without WebView2, use the installer instead.\n\n### Please test\n\nThis is the first Windows build that applies skins, and it hasn't been confirmed in a real game. Import one known-working custom skin, select it, click Apply selection, and start a Practice Tool match. The engine keeps League's integrity checks on, so an unsupported mod is refused rather than forced.\n",
+  "pub_date": "2026-10-24T21:45:29.091Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRTVY3UHhSVWZiNWtSZmZSOHB1RlB4bnR0U2E0TGxHM3g3WGEwUWxsdDNSOXB2TmQzdXl4N1VaSE04UktDYlpxL3NDZWh2TmRGR0grOHR2MVZzZkk0eE1FMHpPbHM1UndvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyODc4MzI5CWZpbGU6Y3N0bVNLTi1XaW5kb3dzLXg2NC1zZXR1cC5leGUJdmVyc2lvbjoxLjAuMwpwZUNiQ2Z1VkNWbVh0QVhLTUVscFI3d2tDbEhCQTg0RGU0TXFXWmc5SmsxYzFTVzdoZ1hlbmd0aWFQak8yZk9kSWl6TmloM0l5citMMnl5U3VtMmlBZz09Cg==",
+      "url": "https://github.com/silentrosehill/cstmSKN/releases/download/v1.0.3-windows-alpha.1/cstmSKN-Windows-x64-setup.exe"
+    }
+  }
+}

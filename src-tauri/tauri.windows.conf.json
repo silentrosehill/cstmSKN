@@ -29,7 +29,7 @@
     ],
     "externalBin": [],
     "resources": {
-      "resources/windows/": "ltk/"
+      "resources/windows/": "native/"
     },
     "icon": [
       "icons/icon.ico"

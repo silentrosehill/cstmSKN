@@ -10,7 +10,7 @@ add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WIN
 add_compile_options(/W4 /WX /permissive- /utf-8 /guard:cf)
 add_link_options(/DYNAMICBASE /NXCOMPAT /guard:cf)
 add_library(cstm-overlay-prototype SHARED overlay.cpp)
-target_link_libraries(cstm-overlay-prototype PRIVATE user32)
+target_link_libraries(cstm-overlay-prototype PRIVATE user32 psapi)
 add_executable(cstm-injector-fixture WIN32 fixture.cpp)
 target_link_libraries(cstm-injector-fixture PRIVATE user32)
 add_executable(cstm-injector-prototype host.cpp)

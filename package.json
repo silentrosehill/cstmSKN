@@ -1,7 +1,7 @@
 {
   "name": "cstmskn",
   "version": "1.0.2",
-  "windowsBuild": "windows-alpha.1",
+  "windowsBuild": "windows-new-inject",
   "private": true,
   "type": "module",
   "scripts": {

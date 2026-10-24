@@ -1,121 +1,82 @@
-# cstmSKN for Windows — LTK integration candidate
+# cstmSKN Windows — integrated source-native injector preview
 
-This branch builds a self-contained Windows 11 x64 preview using LeagueToolkit's
-open-source overlay builder and a clearly identified cstmSKN-derived LTK runtime.
-It does not require LTK Manager to be installed, running or visible. No manual
-DLL import is needed. The independent injector prototype is paused and is not
-part of this build. The macOS engine is unchanged.
+This branch connects the source-built native host/DLL to cstmSKN’s actual
+Apply selection and Stop actions. The app builds cosmetic WAD overlays with the
+open-source LeagueToolkit overlay builder and starts its own runtime. No LTK
+Manager or LTK host/DLL binaries are bundled or launched by this build.
 
-**In-game compatibility is not yet verified.** Windows build and protocol tests
-cannot prove that skins apply in a real game.
+## Test this Windows prerelease
 
-**Known limitation: Windows code-integrity protection can block this unsigned
-runtime.** A reported `Bad Image` error `0xC0E90002` means a system integrity
-policy rejected the DLL. It does not establish a corrupt Windows installation.
-The official LTK Manager working on the same PC does not prove this derived,
-unsigned runtime is trusted. Keep Windows protections enabled. A release signed
-with a trusted Windows code-signing certificate is needed for these machines;
-running as administrator or downloading the same unsigned build again does not
-resolve signing. To identify the blocking policy and file, inspect Event Viewer
-→ Applications and Services Logs → Microsoft → Windows → CodeIntegrity →
-Operational. See [Microsoft's signing guidance](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control).
+1. Install `cstmSKN-Windows-x64-setup.exe`, or extract the portable ZIP into a fresh
+   folder. Keep `native` beside `cstmSKN.exe` in the portable version.
+2. Close other patchers. Confirm the League installation and select/import a
+   known-working skin or mod. Click Apply selection before a fresh Practice Tool
+   match. The app reports Waiting for game only after its native host loads.
+3. The host discovers only `League of Legends.exe` at the exact selected game
+   installation. It uses Windows’ normal window-hook interface and reports any
+   Windows refusal; it does not bypass game or operating-system protections.
+4. Attachment changes the status to Applying to game. In game is reported only
+   after the DLL actually opens an overlay file. Check the skin itself: observed
+   reads do not prove that all game assets or skin effects were replaced.
+5. If no overlay reads are observed within 30 seconds of attachment, the engine
+   stops with an explicit unsupported-file-loading/selection diagnostic.
+6. Stop disables future overlay opens and removes this host’s window hook. It
+   never terminates or assigns ownership of the game process. Resources already
+   loaded into a running match are not reverted. Start a fresh match when changing
+   selections or restarting an engine session during a match.
 
-The app waits for the host's startup acknowledgement before showing “Waiting for
-game,” reports recognized code-integrity failures, and stops a host that never
-finishes starting. Loader errors are returned to the host instead of opening a
-blocking system modal; this changes error reporting only, not Windows security.
+## Administrator handling and Windows protection
 
-Hook attachment failures keep the numeric `SetWindowsHookEx` code. Only an
-access-denied code suggests checking relative engine/game permissions; other
-codes do not claim League is running as administrator. Windows engine Settings
-shows the GUI's actual token. The normal Explorer relaunch can remove the GUI's
-elevation, so a Run as administrator launch is carried forward as a request for
-the engine's normal UAC prompt when Apply starts it. An already elevated GUI
-passes its permissions directly to the engine. These changes do not resolve
-unsigned-code trust or prove a game hook succeeds.
+The native engine inherits the app’s real token. The previous Explorer relaunch
+is not used in this build. If League runs as administrator, launch cstmSKN with
+Windows’ ordinary Run as administrator action too. Settings displays the actual
+app token. There is no misleading separate engine-elevation toggle.
 
-## What changed
+**These binaries remain unsigned.** The previously reported `0xC0E90002` / Smart
+App Control policy block still applies to our own DLL. Administrator rights do
+not establish code-signing trust. Keep Windows protections enabled; this build
+reports refusals instead of changing the policy. Signing is still pending.
 
-The previous preview could attach to League and then silently fail when the DLL
-reported `host verification failed, refusing overlay: [VRF00000008]`.
+## Implementation and limits
 
-The pinned DLL expects `ltk-manager.exe` in its launcher verification. The
-packaging script adapts that expected identity to our real `cstmSKN.exe`, keeping
-the surrounding verification and every other executable byte unchanged, apart
-from the required publisher-signature/checksum removal. It refuses to modify
-an unknown binary or an unexpected code/data layout, records original and
-derived hashes, and verifies the complete modification boundary.
+The DLL verifies the configured executable and controlling host. It changes
+compatible CreateFileW/CreateFileA imports only in modules loaded from the
+selected game folder, keeping game originals untouched. It refuses conflicting
+imports. System modules are excluded; only the described file-opening import slots are changed. Game integrity checks remain unchanged. Only read-only
+WAD opens under the configured game root can use a matching overlay file;
+write and special opens pass through, with original-file fallback if an overlay
+is unavailable. The DLL is pinned so removing a window hook leaves valid import
+pointers. If its controlling host exits, future reads automatically fall back.
 
-The desktop shell-launch adapter is reused from LTK's GPL source so Windows
-launches cstmSKN through the normal Explorer shell, including when an installer
-or another app started it. This does not rename cstmSKN to LTK Manager or spoof a
-process identity. The installed LTK Manager and its settings/files are untouched.
-The app now uses its bundled derived runtime instead of selecting an installed
-LTK DLL with different launcher expectations. Runtime SHA-256 checks reject
-missing, replaced or stale engine files before they can be started.
+Direct NT file APIs, dynamically resolved I/O functions, modules loaded after
+attachment and other file-loading paths may not be covered. The engine reports
+lack of observed overlay reads rather than claiming success. Path matching is
+lexical and is not a boundary against hostile reparse points. **Real League
+compatibility and skin application remain unverified until tested on Windows.**
 
-Host-verification errors now reach the interface from either output stream and
-stop the affected session. The patcher keeps its existing validation flags;
-this integration does not opt out of archive checks or add a game-integrity or
-Vanguard bypass.
+## Validation and build
 
-## Test the candidate
-
-1. Extract the candidate's portable ZIP and keep the `ltk` folder beside
-   `cstmSKN.exe`, or install the candidate installer. Use the candidate artifacts,
-   keeping the engine files that shipped with that build.
-2. Close LTK Manager and any other patcher so two engines cannot compete. Open
-   cstmSKN from its normal shortcut or executable.
-3. Confirm the League installation. Import the same known-working custom
-   `.fantome` used successfully with official LTK Manager, select it, then Apply
-   selection before starting a fresh Practice Tool game.
-4. Check the actual skin in-game, not just the status bar. If it fails, copy the
-   patcher diagnostics, especially any `VRF` code. Do not change system
-   protections or engine validation settings to make it pass.
-5. Test Stop, then a second fresh match and a changed selection. Originals must
-   remain unchanged and errors must remain visible.
-
-The installer and derived runtime are currently unsigned. Administrator mode is
-only needed when League itself runs elevated; the existing engine-elevation
-setting remains available. The application and library use
-`%APPDATA%\com.silentrosehill.cstmskn`. Candidate builds are not published as a
-working game update until tested.
-
-## Source and licenses
-
-- LTK host/DLL upstream: `LeagueToolkit/ltk-manager` at
-  `2adda384347dd43e76d6295d77fe1f13623b2808`.
-- Binary reuse/modification: [LTK Patcher License](licenses/LTK-PATCHER-LICENSE.md).
-  The upstream publisher signatures are removed; cstmSKN does not claim official
-  affiliation or endorsement.
-- GPL desktop shell adapter source: revision
-  `43782aafd296bceaec4ea2078cb03ecce62fdc9a`, with the complete
-  [upstream GPL license](licenses/LTK-MANAGER-LICENSE.md) and
-  [modification notice](licenses/LTK-INTEGRATION-NOTICE.md).
-- `ltk_overlay` and other library licenses are included in the generated notices.
-  The original Zushi notice remains. No Celestial code is used.
-- Build attestation for LTK's hosted patcher delivery is distinct from local
-  launcher verification. This candidate does not use official release credentials
-  or claim access to that delivery service.
-
-## Build on Windows
-
-Install Rust stable, Node.js 22+, Python and Microsoft's C++ build tools.
+The existing fixture tests exercise real cross-process DLL loading, 15 file/access
+conditions, read-only fallback, clean Stop/restart, ownership-job cleanup for the
+fixture only, and missing-DLL error preservation. An additional Windows Rust
+integration test launches the same command/protocol helper used by Apply against
+an owned fixture, requires ready → attached → observed overlay reads, then stops
+and repeats. This tests actual native IPC/DLL behavior, not a simulated callback.
+It does not substitute for a real game test.
 
 ```powershell
 npm ci
-python scripts/prepare-windows-engine.py
-python scripts/test-windows-engine.py
+python scripts/prepare-native-windows-engine.py
+cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
 python scripts/windows-license-notices.py
 npm test
-cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
 npm run tauri -- build --bundles nsis
 ```
 
-The Windows workflow uploads the installer, portable ZIP, notices and runtime
-provenance. Preparing engine resources is reproducible from their pinned hashes;
-unknown upstream releases fail closed rather than receiving a guessed patch.
-It also runs `scripts/test-windows-engine-load.ps1` against the portable engine:
-the real DLL must load, scanning must be acknowledged, and Stop must exit
-cleanly. No game is launched. Passing on a hosted runner does not verify loading
-under the policies of every Windows PC or establish in-game compatibility.
+The preparation script compiles and tests the engine from this repository and
+records its exact hashes. The app embeds that manifest and rejects stale/replaced
+runtime files. The Windows workflow packages a complete NSIS installer and
+portable app, corresponding source, licenses, provenance and checksums.
+Original native engine source is GPL-3.0-or-later; the full license and all
+open-source dependency notices accompany the build. No test fixture is bundled
+in the production app. The macOS engine remains separate.

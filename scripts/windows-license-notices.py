@@ -21,7 +21,7 @@ def texts(folder):
 def main():
     data = json.loads(subprocess.check_output(["cargo", "metadata", "--manifest-path", str(ROOT / "src-tauri/Cargo.toml"), "--format-version", "1", "--filter-platform", "x86_64-pc-windows-msvc", "--locked"], text=True, encoding="utf-8"))
     ids = {node["id"] for node in data["resolve"]["nodes"]}
-    notices = ["# cstmSKN Windows third-party notices\n", "The following notices come from the resolved build graph. Some dependencies are build tools rather than runtime components. The LTK binaries are covered separately by LTK-PATCHER-LICENSE.md.\n"]
+    notices = ["# cstmSKN Windows third-party notices\n", "The following notices come from the resolved build graph. Some dependencies are build tools rather than runtime components. The native host/DLL are built from our GPL-3.0-or-later source. This package contains no LTK runtime binaries. The LeagueToolkit open-source overlay builder remains a dependency.\n"]
     manifest = []
     for package in sorted(data["packages"], key=lambda p: (p["name"], p["version"])):
         if package["id"] not in ids:

@@ -1,4 +1,4 @@
-//! Windows adapter: LeagueToolkit overlay builder + the separately licensed LTK host.
+//! Windows adapter: LeagueToolkit overlay builder + the separately licensed Native host.
 use crate::state::{AppState, PatcherStatus};
 use camino::Utf8PathBuf;
 use ltk_overlay::{EnabledMod, FantomeContent, OverlayBuilder};
@@ -158,9 +158,9 @@ fn start(
         return Err("No skins selected".into());
     }
     let resource = resources(&app)?;
-    for name in ["ltk_patcher_host.exe", "ltk_patcher_dll.dll"] {
+    for name in ["cstm-native-host.exe", "cstm-native-overlay.dll"] {
         if !resource.join(name).is_file() {
-            return Err("LTK engine files are missing. Reinstall the Windows preview.".into());
+            return Err("Native engine files are missing. Reinstall the Windows preview.".into());
         }
     }
     for path in &paths {
@@ -236,28 +236,16 @@ fn start(
             if !current(&state, generation) {
                 return Ok(());
             }
-            let config = crate::ltk_protocol::configure(built.overlay_root.as_str())?;
-            let elevate = super::engine::should_elevate(&app);
+            let config = crate::native_protocol::configure(&game, built.overlay_root.as_str())?;
             log(
                 &logfile,
                 &format!(
-                    "Windows permissions: cstmSKN elevated={}; requesting engine UAC={elevate}",
-                    super::engine::app_is_elevated(),
+                    "Starting source-native engine; cstmSKN elevated={}",
+                    super::engine::app_is_elevated()
                 ),
             );
-            log(
-                &logfile,
-                if elevate {
-                    "Starting LTK host with --elevate (administrator mode)."
-                } else {
-                    "Starting LTK host with inherited app permissions."
-                },
-            );
-            let mut command = Command::new(resource.join("ltk_patcher_host.exe"));
+            let mut command = crate::native_protocol::host_command(&resource, false);
             update(&state, generation, PatcherStatus::StartingEngine);
-            if elevate {
-                command.arg("--elevate");
-            }
             let mut child = command
                 .current_dir(&resource)
                 .creation_flags(0x08000000)
@@ -267,18 +255,18 @@ fn start(
                 .spawn()
                 .map_err(|e| {
                     e.raw_os_error()
-                        .and_then(|code| crate::ltk_protocol::loader_error(code as u32))
-                        .unwrap_or_else(|| format!("Could not start LTK: {e}"))
+                        .and_then(|code| crate::native_protocol::loader_error(code as u32))
+                        .unwrap_or_else(|| format!("Could not start native engine: {e}"))
                 })?;
             if let Err(e) = child
                 .stdin
                 .as_mut()
-                .ok_or("LTK input closed")
+                .ok_or("Native engine input closed")
                 .and_then(|input| {
                     input
                         .write_all(config.as_bytes())
                         .and_then(|_| input.flush())
-                        .map_err(|_| "Could not configure LTK")
+                        .map_err(|_| "Could not configure native engine")
                 })
             {
                 let _ = child.kill();
@@ -308,7 +296,7 @@ fn start(
                 if let Some(stdout) = stdout {
                     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                         log(&output_log, &line);
-                        if let Some(next) = crate::ltk_protocol::status(&line) {
+                        if let Some(next) = crate::native_protocol::status(&line) {
                             let failed = matches!(next, PatcherStatus::Error(_));
                             update(&output_state, generation, next);
                             if failed {
@@ -329,7 +317,7 @@ fn start(
                 if let Some(stderr) = stderr {
                     for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                         log(&error_log, &line);
-                        if let Some(pid) = crate::ltk_protocol::hook_target_pid(&line) {
+                        if let Some(pid) = crate::native_protocol::hook_target_pid(&line) {
                             log(
                                 &error_log,
                                 &format!(
@@ -341,7 +329,7 @@ fn start(
                         // stderr is diagnostic-only: do not let lifecycle chatter
                         // on this stream overwrite stdout's session state.
                         if let Some(next @ PatcherStatus::Error(_)) =
-                            crate::ltk_protocol::status(&line)
+                            crate::native_protocol::status(&line)
                         {
                             update(&error_state, generation, next);
                             let _ = stop_host_for(Some(generation));
@@ -363,7 +351,7 @@ fn start(
                     break;
                 };
                 if let Some(exit) = active.child.try_wait().map_err(|e| e.to_string())? {
-                    log(&logfile, &format!("LTK host exit: {exit}"));
+                    log(&logfile, &format!("Native host exit: {exit}"));
                     slot.take();
                     let mut s = state.lock().map_err(|e| e.to_string())?;
                     if s.patcher_gen == generation {
@@ -374,7 +362,7 @@ fn start(
                             {
                                 PatcherStatus::Idle
                             } else {
-                                PatcherStatus::Error(crate::ltk_protocol::host_exit_error(
+                                PatcherStatus::Error(crate::native_protocol::host_exit_error(
                                     exit.code(),
                                 ))
                             };
@@ -388,11 +376,11 @@ fn start(
                         == PatcherStatus::StartingEngine;
                 if startup_timed_out {
                     update(&state, generation, PatcherStatus::Error(
-                        "The LTK engine did not finish starting. No skins were applied. Check patcher diagnostics and any Windows security notification.".into(),
+                        "The native engine did not finish starting. No skins were applied. Check patcher diagnostics and any Windows security notification.".into(),
                     ));
                     log(
                         &logfile,
-                        "LTK startup timed out before its scanning acknowledgement.",
+                        "Native engine startup timed out before its scanning acknowledgement.",
                     );
                     stop_host_for(Some(generation))?;
                     if let Ok(mut s) = state.lock() {
@@ -508,19 +496,11 @@ pub async fn get_patcher_health(
         (s.game_path.clone(), s.patcher_status.clone())
     };
     let resources = resources(&app)?;
-    let permissions = format!(
-        "cstmSKN token: {}. Engine: {}.",
-        if super::engine::app_is_elevated() {
-            "administrator"
-        } else {
-            "standard user"
-        },
-        if super::engine::should_elevate(&app) {
-            "will request UAC elevation when started"
-        } else {
-            "inherits cstmSKN permissions"
-        },
-    );
+    let permissions = if super::engine::app_is_elevated() {
+        "cstmSKN and its native engine run as administrator."
+    } else {
+        "cstmSKN and its native engine run as a standard user. If League runs elevated, restart cstmSKN using Run as administrator."
+    }.to_string();
     let data = base(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let check = |id, label, ok, detail: &str| HealthCheck {
@@ -555,10 +535,10 @@ pub async fn get_patcher_health(
             ),
             check(
                 "engine",
-                "LTK engine",
+                "Native injector",
                 engine,
                 if engine {
-                    "LTK host and DLL are installed."
+                    "Native host and DLL are installed."
                 } else {
                     "Reinstall the Windows preview."
                 },

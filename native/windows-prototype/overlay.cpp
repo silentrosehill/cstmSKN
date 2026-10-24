@@ -3,6 +3,7 @@
 #include <mutex>
 #include <vector>
 #include <bit>
+#include <psapi.h>
 
 extern "C" __declspec(dllexport) LRESULT CALLBACK CstmFixtureHook(int, WPARAM, LPARAM);
 namespace {
@@ -12,6 +13,7 @@ OpenWide real_wide = nullptr;
 OpenAnsi real_ansi = nullptr;
 cstm::Shared* config = nullptr;
 HANDLE mapping = nullptr;
+HANDLE owner = nullptr;
 std::once_flag installed;
 struct LastError {
     DWORD code = GetLastError();
@@ -31,6 +33,10 @@ bool read_only(DWORD access, DWORD disposition, DWORD flags) {
 std::wstring redirect(LPCWSTR input, DWORD access, DWORD disposition, DWORD flags) {
     if (!input || !config || InterlockedCompareExchange(&config->enabled, 0, 0) != 1 ||
         !read_only(access, disposition, flags)) return {};
+    if (!owner || WaitForSingleObject(owner, 0) != WAIT_TIMEOUT) {
+        InterlockedExchange(&config->enabled, 0);
+        return {};
+    }
     const auto path = cstm::full_path(input);
     const std::wstring root = std::wstring(config->game_root) + L"\\";
     if (path.size() <= root.size() ||
@@ -113,17 +119,15 @@ bool exchange(void** slot, void* value) {
     return VirtualProtect(slot, sizeof(void*), protection, &ignored) != FALSE;
 }
 void initialize() {
-    // Refuse any target except the child test executable beside this DLL.
     const auto exe = cstm::executable_path();
-    if (!cstm::same_text(cstm::file_name(exe), cstm::fixture_name)) return;
     HMODULE self = nullptr;
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
         reinterpret_cast<LPCWSTR>(&CstmFixtureHook), &self)) return;
     wchar_t dll_path[32768]{};
     DWORD len = GetModuleFileNameW(self, dll_path, 32768);
     FreeLibrary(self);
-    if (!len || len >= 32768 || !cstm::same_text(cstm::directory(exe),
-        cstm::directory(cstm::full_path(dll_path)))) return;
+    if (!len || len >= 32768) return;
+    const auto dll_dir = cstm::directory(cstm::full_path(dll_path));
     mapping = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE,
         cstm::mapping_name(GetCurrentProcessId()).c_str());
     if (!mapping) return;
@@ -131,9 +135,32 @@ void initialize() {
     if (!config) { CloseHandle(mapping); mapping = nullptr; return; }
     if (config->version != cstm::protocol_version || config->size != sizeof(cstm::Shared) ||
         config->pid != GetCurrentProcessId() ||
-        !wmemchr(config->game_root, L'\0', 32768) || !wmemchr(config->overlay_root, L'\0', 32768)) {
+        !wmemchr(config->game_root, L'\0', 32768) || !wmemchr(config->overlay_root, L'\0', 32768) ||
+        !wmemchr(config->target_exe, L'\0', 32768) || !config->owner_pid) {
         reject(L"Fixture configuration has an incompatible version, size, target or path");
         return;
+    }
+    const bool fixture = config->mode == cstm::fixture_mode &&
+        cstm::same_text(cstm::file_name(exe), cstm::fixture_name) &&
+        cstm::same_text(cstm::directory(exe), dll_dir);
+    const bool league = config->mode == cstm::league_mode &&
+        cstm::same_text(cstm::file_name(exe), L"League of Legends.exe") &&
+        cstm::same_text(cstm::directory(exe), cstm::full_path(config->game_root));
+    if ((!fixture && !league) || !cstm::same_text(exe, cstm::full_path(config->target_exe))) {
+        reject(L"The running executable does not match the configured target"); return;
+    }
+    owner = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, config->owner_pid);
+    if (!owner) { reject(L"Could not inspect the controlling host", GetLastError()); return; }
+    wchar_t owner_exe[32768]{};
+    DWORD owner_len = 32768;
+    if (!QueryFullProcessImageNameW(owner, 0, owner_exe, &owner_len)) {
+        reject(L"Could not identify the controlling host", GetLastError()); return;
+    }
+    const auto owner_path = cstm::full_path(owner_exe);
+    if (!cstm::same_text(cstm::directory(owner_path), dll_dir) ||
+        (!cstm::same_text(cstm::file_name(owner_path), L"cstm-injector-prototype.exe") &&
+         !cstm::same_text(cstm::file_name(owner_path), L"cstm-native-host.exe"))) {
+        reject(L"The controlling host is not from this engine installation"); return;
     }
     // Pin before changing an import address: unhooking the window must never
     // unload a DLL still referenced by an import thunk.
@@ -146,15 +173,34 @@ void initialize() {
     real_wide = std::bit_cast<OpenWide>(GetProcAddress(kernel, "CreateFileW"));
     real_ansi = std::bit_cast<OpenAnsi>(GetProcAddress(kernel, "CreateFileA"));
     if (!real_wide || !real_ansi) { reject(L"Windows file APIs are unavailable", GetLastError()); return; }
-    auto* base = reinterpret_cast<BYTE*>(GetModuleHandleW(nullptr));
+    std::vector<HMODULE> modules(1024);
+    DWORD bytes = 0;
+    if (!EnumProcessModules(GetCurrentProcess(), modules.data(),
+        static_cast<DWORD>(modules.size() * sizeof(HMODULE)), &bytes) || bytes > modules.size() * sizeof(HMODULE)) {
+        reject(L"Could not enumerate the target's loaded modules", GetLastError()); return;
+    }
+    modules.resize(bytes / sizeof(HMODULE));
+    std::vector<Patch> patches;
+    for (HMODULE module : modules) {
+    if (fixture && module != GetModuleHandleW(nullptr)) continue;
+    wchar_t module_name[32768]{};
+    if (!GetModuleFileNameW(module, module_name, 32768)) continue;
+    const auto module_path = cstm::full_path(module_name);
+    const auto root = cstm::full_path(config->game_root) + L"\\";
+    if (league && (module == self || module_path.size() <= root.size() ||
+        !cstm::same_text(module_path.substr(0, root.size()), root))) continue;
+    HMODULE retained = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+        reinterpret_cast<LPCWSTR>(module), &retained)) continue;
+    struct ReleaseModule { HMODULE value; ~ReleaseModule() { FreeLibrary(value); } } retained_module{retained};
+    auto* base = reinterpret_cast<BYTE*>(module);
     const auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
     if (dos->e_magic != IMAGE_DOS_SIGNATURE) { reject(L"Fixture DOS header is invalid"); return; }
     const auto* nt = reinterpret_cast<IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
     if (nt->Signature != IMAGE_NT_SIGNATURE) { reject(L"Fixture PE header is invalid"); return; }
     const auto imports = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-    if (!imports.VirtualAddress) { reject(L"Fixture has no import table"); return; }
+    if (!imports.VirtualAddress) continue;
     auto* descriptor = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base + imports.VirtualAddress);
-    std::vector<Patch> patches;
     for (; descriptor->Name; ++descriptor) {
         if (!descriptor->OriginalFirstThunk) continue;
         auto* names = reinterpret_cast<IMAGE_THUNK_DATA64*>(base + descriptor->OriginalFirstThunk);
@@ -178,12 +224,15 @@ void initialize() {
             }
         }
     }
+    }
     bool wide = false, ansi = false;
     for (const auto& patch : patches) {
         wide |= patch.replacement == reinterpret_cast<void*>(&open_wide);
         ansi |= patch.replacement == reinterpret_cast<void*>(&open_ansi);
     }
-    if (!wide || !ansi) { reject(L"Fixture must import both Windows file APIs"); return; }
+    if ((!wide && !ansi) || (fixture && (!wide || !ansi))) {
+        reject(L"Unsupported file-loading path: no compatible Windows file API imports were found"); return;
+    }
     for (const auto& patch : patches) {
         if (!exchange(patch.slot, patch.replacement)) {
             reject(L"Could not update or protect the fixture import table", GetLastError());

@@ -6,6 +6,11 @@
 #include <vector>
 #include <bit>
 #include <iomanip>
+#include <atomic>
+#include <thread>
+#include <mutex>
+#include <memory>
+#include <sstream>
 
 namespace {
 struct Handle {
@@ -187,6 +192,10 @@ void run_once(const std::filesystem::path& folder, const std::filesystem::path& 
     config.version = cstm::protocol_version;
     config.size = sizeof(config);
     config.pid = child.pid;
+    config.owner_pid = GetCurrentProcessId();
+    config.mode = cstm::fixture_mode;
+    require(wcscpy_s(config.target_exe, cstm::full_path(fixture.wstring()).c_str()) == 0,
+        "Fixture executable path is too long");
     require(wcscpy_s(config.game_root, cstm::full_path(game.wstring()).c_str()) == 0,
         "Game test path is too long");
     require(wcscpy_s(config.overlay_root, cstm::full_path(overlay.wstring()).c_str()) == 0,
@@ -245,11 +254,14 @@ void run_once(const std::filesystem::path& folder, const std::filesystem::path& 
     require(exit_code == 0, "Fixture returned a failure exit code");
     child.window = nullptr;
 }
+#include "runtime.h"
 } // namespace
 int wmain(int argc, wchar_t** argv) {
     SetErrorMode(GetErrorMode() | SEM_FAILCRITICALERRORS);
+    if (argc == 2 && std::wstring(argv[1]) == L"--run") return run_protocol(false);
+    if (argc == 2 && std::wstring(argv[1]) == L"--fixture-protocol-test") return run_protocol(true);
     if (argc != 2 || std::wstring(argv[1]) != L"--self-test") {
-        std::cerr << "Only --self-test is supported. This prototype cannot target League or another app.\n";
+        std::cerr << "Supported modes: --run, --self-test, --fixture-protocol-test. Arbitrary targets are not accepted.\n";
         return 2;
     }
     std::filesystem::path scratch;

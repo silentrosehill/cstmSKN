@@ -1,97 +1,28 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getWindowsElevation, setWindowsElevation } from "../lib/commands";
+import { getWindowsElevation } from "../lib/commands";
 import type { WindowsElevation } from "../lib/commands";
-interface Engine {
-  folder: string;
-  source: string;
-}
-export default function WindowsEngineCard({
-  native,
-  active,
-}: {
-  native: boolean;
-  active: boolean;
-}) {
+interface Engine { folder: string; source: string; }
+export default function WindowsEngineCard({ native }: { native: boolean; active: boolean; }) {
   const [engine, setEngine] = useState<Engine | null>(null);
   const [elevation, setElevation] = useState<WindowsElevation | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (native) {
-      void invoke<Engine>("get_windows_engine")
-        .then(setEngine)
-        .catch((e) => setError(String(e)));
-      void getWindowsElevation()
-        .then(setElevation)
-        .catch((e) => setError(String(e)));
+      void invoke<Engine>("get_windows_engine").then(setEngine).catch(e => setError(String(e)));
+      void getWindowsElevation().then(setElevation).catch(e => setError(String(e)));
     }
   }, [native]);
-  async function changeElevation() {
-    if (!elevation) return;
-    setError(null);
-    setBusy(true);
-    try {
-      await setWindowsElevation(!elevation.optIn);
-      setElevation(await getWindowsElevation());
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <section className="software-update" aria-label="Windows patcher engine">
-      <div className="software-update-row">
-        <div className="software-update-title">
-          <h2>Windows engine</h2>
-          <p>{engine?.source ?? "LeagueToolkit"}</p>
-        </div>
-      </div>
-      <div className="software-update-status">
-        <p>
-          Built into cstmSKN with LeagueToolkit components. No separate LTK Manager or DLL import is
-          required. This integration is experimental and still needs in-game verification.
-        </p>
-        {engine && (
-          <p className="truncate" title={engine.folder}>
-            {engine.folder}
-          </p>
-        )}
-        <div className="software-update-row mt-3">
-          <div className="software-update-title">
-            <h3>Run engine as administrator</h3>
-            <p>
-              Requests engine elevation when needed. An already elevated app passes its permissions
-              to the engine.
-            </p>
-            {elevation && (
-              <p>cstmSKN is running as {elevation.appIsElevated ? "administrator" : "a standard user"}.</p>
-            )}
-            {elevation?.requestedAtLaunch && !elevation.appIsElevated && (
-              <p>Your administrator launch was retained. The engine will request UAC permission when started.</p>
-            )}
-            {elevation?.leagueRunsAsAdmin && (
-              <p>League is set to run as administrator, so this is used automatically.</p>
-            )}
-          </div>
-          <button
-            className={`setting-switch ${elevation?.optIn ? "on" : ""}`}
-            disabled={!native || active || busy || !elevation}
-            role="switch"
-            aria-checked={elevation?.optIn ?? false}
-            aria-label="Run engine as administrator"
-            onClick={() => void changeElevation()}
-          >
-            <span />
-          </button>
-        </div>
-        {error && (
-          <p className="update-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-    </section>
-  );
+  return <section className="software-update" aria-label="Windows patcher engine">
+    <div className="software-update-row"><div className="software-update-title">
+      <h2>Windows engine</h2><p>{engine?.source ?? "cstmSKN native injector"}</p>
+    </div></div>
+    <div className="software-update-status">
+      <p>Source-built experimental injector. Apply selection builds an overlay and starts this engine. Use a fresh match when changing selections.</p>
+      {engine && <p className="truncate" title={engine.folder}>{engine.folder}</p>}
+      {elevation && <p className="mt-3">App and engine run as {elevation.appIsElevated ? "administrator" : "a standard user"}. If League runs elevated, restart cstmSKN using Run as administrator.</p>}
+      <p>Unsigned preview. Windows code-integrity protection may block the DLL; in-game compatibility still needs testing.</p>
+      {error && <p className="update-error" role="alert">{error}</p>}
+    </div>
+  </section>;
 }

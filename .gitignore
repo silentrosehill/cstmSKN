@@ -20,3 +20,5 @@ src-tauri/resources/windows/
 
 __pycache__/
 *.py[cod]
+
+native-build/

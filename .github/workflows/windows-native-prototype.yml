@@ -23,9 +23,9 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
         with:
           workspaces: src-tauri
-      - name: Prepare existing Windows app resources
-        run: python scripts/prepare-windows-engine.py
-      - name: Check native Windows app and host-refusal regression
+      - name: Build source-native Windows app resources
+        run: python scripts/prepare-native-windows-engine.py
+      - name: Check app/native-engine protocol and regressions
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
   fixture:
     runs-on: windows-latest

@@ -2,10 +2,12 @@
 #include <windows.h>
 #include <string>
 
-// This protocol is deliberately restricted to our own child fixture. There is
-// no PID argument, game discovery, or connection to the League patcher path.
+// Targets are restricted to the configured League executable or our owned
+// fixture. No arbitrary PID or executable argument is accepted.
 namespace cstm {
-constexpr DWORD protocol_version = 2;
+constexpr DWORD protocol_version = 3;
+constexpr DWORD fixture_mode = 0;
+constexpr DWORD league_mode = 1;
 constexpr UINT test_reads = WM_APP + 31;
 constexpr UINT test_stopped = WM_APP + 32;
 constexpr UINT test_before = WM_APP + 33;
@@ -17,6 +19,8 @@ struct Shared {
     DWORD version;
     DWORD size;
     DWORD pid;
+    DWORD owner_pid;
+    DWORD mode;
     volatile LONG enabled;
     volatile LONG ready; // 0: pending, 1: installed, -1: rejected
     volatile LONG redirects;
@@ -25,10 +29,11 @@ struct Shared {
     DWORD error_code;
     wchar_t game_root[32768];
     wchar_t overlay_root[32768];
+    wchar_t target_exe[32768];
     wchar_t error[256];
 };
 inline std::wstring mapping_name(DWORD pid) {
-    return L"Local\\cstmSKN-injector-fixture-" + std::to_wstring(pid);
+    return L"Local\\cstmSKN-native-overlay-" + std::to_wstring(pid);
 }
 inline std::wstring full_path(const std::wstring& input) {
     const DWORD count = GetFullPathNameW(input.c_str(), 0, nullptr, nullptr);

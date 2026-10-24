@@ -1,7 +1,7 @@
 mod archive;
 mod commands;
 #[cfg(any(target_os = "windows", test))]
-mod ltk_protocol;
+mod native_protocol;
 mod state;
 #[cfg(target_os = "windows")]
 mod windows_shell;
@@ -359,11 +359,8 @@ pub fn run() {
         };
         SetErrorMode(GetErrorMode() | SEM_FAILCRITICALERRORS);
     }
-    // Match the normal shell launch used by LTK's own desktop application.
-    #[cfg(all(target_os = "windows", not(debug_assertions)))]
-    if windows_shell::relaunch_if_needed() {
-        return;
-    }
+    // The source-native engine uses the app's actual token. Preserve an
+    // explicit administrator launch; it has no Explorer-parent requirement.
     #[cfg(target_os = "macos")]
     {
         // mod-tools needs root for task_for_pid on macOS.

@@ -16,6 +16,13 @@ pub(super) fn is_valid_game_dir(path: &str) -> bool {
         path.join("LeagueofLegends.app").is_dir()
     }
 }
+/// Windows canonical paths start with `\\?\`; show and store the normal `C:\...` form.
+fn plain_path(path: &str) -> String {
+    match path.strip_prefix(r"\\?\") {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => rest.to_owned(),
+        _ => path.to_owned(),
+    }
+}
 fn resolve_game_path(raw: &str) -> Option<String> {
     if raw.is_empty() {
         return None;
@@ -37,7 +44,7 @@ fn resolve_game_path(raw: &str) -> Option<String> {
             return candidate
                 .canonicalize()
                 .ok()
-                .map(|p| p.to_string_lossy().into_owned());
+                .map(|p| plain_path(&p.to_string_lossy()));
         }
     }
     None
@@ -135,6 +142,18 @@ pub fn get_game_path(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Option<St
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn windows_long_path_prefix_is_removed_for_drive_paths() {
+        assert_eq!(
+            plain_path(r"\\?\C:\Riot Games\League of Legends\Game"),
+            r"C:\Riot Games\League of Legends\Game"
+        );
+        assert_eq!(plain_path(r"\\?\UNC\server\share"), r"\\?\UNC\server\share");
+        assert_eq!(
+            plain_path("/Applications/League of Legends.app"),
+            "/Applications/League of Legends.app"
+        );
+    }
     #[test]
     fn accepts_root_game_folder_and_executable_and_rejects_random_folders() {
         let root = std::env::temp_dir().join(format!("cstm-path-{}", std::process::id()));

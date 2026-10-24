@@ -9,6 +9,24 @@ concurrency:
   group: native-prototype-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  backend:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Use current stable Rust
+        run: rustup update stable --no-self-update
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          workspaces: src-tauri
+      - name: Prepare existing Windows app resources
+        run: python scripts/prepare-windows-engine.py
+      - name: Check native Windows app and host-refusal regression
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
   fixture:
     runs-on: windows-latest
     timeout-minutes: 10

@@ -1,6 +1,21 @@
 # cstmSKN for Windows (preview)
 
-cstmSKN runs on Windows 11 x64 to Windows 11 x64 with the LeagueToolkit overlay builder and LTK patcher. The stable macOS release remains unchanged. The preview still needs an in-game Practice Tool test on a real Windows PC before it can be called working in-game.
+cstmSKN's Windows 11 x64 preview uses the LeagueToolkit overlay builder and LTK patcher. The macOS release remains separate.
+
+## Known applying issue
+
+The Windows 1.0.2 preview has a reported LTK DLL refusal:
+`host verification failed, refusing overlay: [VRF00000008]`. Attaching to the
+game is not proof that an overlay applied. Importing another copy of the DLL
+alone does not resolve this refusal. This branch surfaces it as a patcher error,
+including when the diagnostic arrives on stderr, and stops that patcher session.
+It does not remove LTK verification or establish a working game backend.
+
+An independent, source-built [native injector prototype](native/windows-prototype)
+tests DLL loading and read-only file overlays in a child fixture only. It cannot
+target League and is not connected to Apply selection. No new game-compatible
+engine is released by these changes. Its passing Windows tests do not establish
+League or Vanguard compatibility.
 
 ## Install and test
 

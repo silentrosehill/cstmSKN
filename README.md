@@ -6,7 +6,7 @@ I DONT TAKE CREDIT FOR ANYTHING HERE, THIS VERSION IS BASED, BUILT AND MODIFIED 
 
 [Download the latest release](https://github.com/silentrosehill/cstmSKN/releases/latest)
 
-**Windows preview:** cstmSKN also runs on Windows 11 x64. Get it from the [Windows preview release](https://github.com/silentrosehill/cstmSKN/releases/tag/v1.0.1-windows-alpha.1) ([installer](https://github.com/silentrosehill/cstmSKN/releases/download/v1.0.1-windows-alpha.1/cstmSKN-Windows-x64-setup.exe) or [portable zip, no install](https://github.com/silentrosehill/cstmSKN/releases/download/v1.0.1-windows-alpha.1/cstmSKN-Windows-x64-portable.zip)). It's an early test build; see [WINDOWS.md](WINDOWS.md) for setup and limits.
+**Windows preview:** cstmSKN also runs on Windows 11 x64. Get it from the [Windows preview release](https://github.com/silentrosehill/cstmSKN/releases/tag/v1.0.1-windows-alpha.2) ([installer](https://github.com/silentrosehill/cstmSKN/releases/download/v1.0.1-windows-alpha.2/cstmSKN-Windows-x64-setup.exe) or [portable zip, no install](https://github.com/silentrosehill/cstmSKN/releases/download/v1.0.1-windows-alpha.2/cstmSKN-Windows-x64-portable.zip)). It's an early test build; see [WINDOWS.md](WINDOWS.md) for setup and limits.
 
 ## Screenshots
 

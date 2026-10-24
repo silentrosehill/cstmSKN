@@ -397,6 +397,13 @@ mod tests {
         archive_targets, entry, import_into, infer_kind, safe_name, targets_from_listing,
         validate_listing,
     };
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_import_names_cannot_be_device_names() {
+        assert_eq!(safe_name("CON.fantome").unwrap(), "_CON");
+        assert_eq!(safe_name("AUX.zip").unwrap(), "_AUX");
+        assert_eq!(safe_name("My Custom Skin.fantome").unwrap(), "My Custom Skin");
+    }
     #[test]
     fn imports_preserve_categories_and_never_overwrite_existing_archives() {
         let stamp = std::time::SystemTime::now()

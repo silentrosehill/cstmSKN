@@ -1,6 +1,7 @@
 pub mod appearance;
 pub mod client;
 pub mod customs;
+pub mod engine;
 pub mod game_path;
 #[cfg(not(target_os = "windows"))]
 pub mod patcher;

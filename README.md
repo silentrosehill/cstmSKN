@@ -29,6 +29,19 @@ I DONT TAKE CREDIT FOR ANYTHING HERE, THIS VERSION IS BASED, BUILT AND MODIFIED 
   </tr>
 </table>
 
+### Windows preview
+
+<table>
+  <tr>
+    <td width="50%"><img src="screenshots/14-windows-champions.png" alt="cstmSKN on Windows 11 showing the Champions grid" /><br /><sub>Champions on Windows 11</sub></td>
+    <td width="50%"><img src="screenshots/15-windows-settings.png" alt="cstmSKN Settings on Windows 11" /><br /><sub>Settings on Windows 11</sub></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/13-windows-welcome.png" alt="Welcome screen with the League installation found automatically" /><br /><sub>Finds your League install</sub></td>
+    <td></td>
+  </tr>
+</table>
+
 More in [screenshots](screenshots).
 
 ## Features

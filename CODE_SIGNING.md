@@ -2,10 +2,11 @@
 
 ## Application status
 
-As of 24 October 2026, cstmSKN is preparing an application to the
-[SignPath Foundation](https://signpath.org/) for eligibility review. We have not
-been accepted and do not currently use a SignPath certificate. Published Windows
-builds are unsigned. No SignPath sponsorship, endorsement or signature is claimed.
+cstmSKN submitted its application to the
+[SignPath Foundation](https://signpath.org/) on 24 October 2026. The application
+form confirmed receipt; eligibility review is pending. We have not been accepted
+and do not currently use a SignPath certificate. Published Windows builds are
+unsigned. No SignPath sponsorship, endorsement or signature is claimed.
 
 The current Windows package includes a binary-only LeagueToolkit host and DLL
 under the [LTK Patcher License](licenses/LTK-PATCHER-LICENSE.md). These components

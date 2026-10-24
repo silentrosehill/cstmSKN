@@ -28,6 +28,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
         with:
           workspaces: src-tauri
+          cache-on-failure: true
       - name: Install frontend dependencies
         run: npm ci
       - name: Prepare licensed Windows engine
@@ -43,6 +44,8 @@ jobs:
         run: npm test
       - name: Windows native regression tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
+      - name: Collect open-source license notices
+        run: python scripts/windows-license-notices.py
       - name: Build Windows installer
         run: npm run tauri -- build --bundles nsis
       - name: Verify package and document provenance

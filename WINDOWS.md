@@ -25,7 +25,7 @@ Windows imports/downloads use a read-only Rust ZIP inspector instead of macOS `u
 
 - LeagueToolkit source and resources pinned to commit `2adda384347dd43e76d6295d77fe1f13623b2808` of [ltk-manager](https://github.com/LeagueToolkit/ltk-manager).
 - [LTK Patcher License](licenses/LTK-PATCHER-LICENSE.md) covers the host and DLL. The packaging script verifies the upstream SHA-256 hashes, removes League Toolkit's Authenticode signatures as required by the license, and records original and redistributed hashes in `engine-provenance.json`. No patcher validation settings are disabled.
-- `ltk_overlay` and its related LeagueToolkit libraries are separate open-source crates; their license notices remain applicable. The original Zushi MIT notice and existing Rust GPL metadata are retained.
+- `ltk_overlay` and its related LeagueToolkit libraries are separate open-source crates; their license notices remain applicable. The original Zushi MIT notice and existing Rust GPL metadata are retained. Generated dependency notices and complete license text ship with the Windows engine resources.
 - The older CSLOL DLL is not included in the Windows build. Its separate restrictions are different from the current LTK license.
 - Celestial's public repository hosts releases and does not publish reusable application source under an open-source license; no Celestial code or binaries are used.
 
@@ -37,6 +37,7 @@ Install Rust stable, Node.js 22+, Python, and Microsoft's C++ build tools. Then:
 npm ci
 python scripts/test-windows-engine.py
 python scripts/prepare-windows-engine.py
+python scripts/windows-license-notices.py
 npm test
 cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
 npm run tauri -- build --bundles nsis

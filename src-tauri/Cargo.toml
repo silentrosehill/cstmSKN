@@ -33,4 +33,6 @@ tauri-plugin-updater = "2"
 [target.'cfg(target_os = "windows")'.dependencies]
 camino = "1"
 ltk_overlay = "=0.17.0"
+# Match LTK Manager's own lockfile: zip 2.6 changes the ZipFile reader API.
+zip_ltk = { package = "zip", version = "=2.4.2" }
 winreg = "0.55"

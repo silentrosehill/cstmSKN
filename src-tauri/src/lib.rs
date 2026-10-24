@@ -353,6 +353,12 @@ pub fn run() {
             commands::customs::get_customs_dir_size,
             commands::open_url,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_handle, event| {
+            #[cfg(target_os = "windows")]
+            if matches!(event, tauri::RunEvent::Exit) { commands::patcher::shutdown(); }
+            #[cfg(not(target_os = "windows"))]
+            let _ = event;
+        });
 }

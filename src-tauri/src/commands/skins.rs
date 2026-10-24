@@ -36,10 +36,26 @@ fn encode_path(s: &str) -> Result<String, String> {
     {
         return Err("Invalid skin or champion name".into());
     }
-    Ok(s.replace('/', "%2F"))
+    let encoded = s.replace('/', "%2F");
+    #[cfg(target_os = "windows")]
+    let encoded = {
+        let mut encoded = encoded;
+        for (ch, code) in [(':' , "%3A"), ('*', "%2A"), ('?', "%3F"), ('"', "%22"), ('<', "%3C"), ('>', "%3E"), ('|', "%7C")] { encoded = encoded.replace(ch, code); }
+        while encoded.ends_with(['.', ' ']) { let ch = encoded.pop().unwrap(); encoded.push_str(if ch == '.' { "%2E" } else { "%20" }); }
+        let stem = encoded.split('.').next().unwrap_or_default().to_ascii_uppercase();
+        if ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"].contains(&stem.as_str()) { encoded.insert_str(0, "%5F"); }
+        encoded
+    };
+    if encoded.len() > 220 { return Err("Skin name is too long for this filesystem".into()); }
+    Ok(encoded)
 }
 fn decode_path(s: &str) -> String {
-    s.replace("%2F", "/")
+    #[cfg(target_os = "windows")]
+    let s = s.strip_prefix("%5F").unwrap_or(s);
+    let mut result = s.replace("%2F", "/");
+    #[cfg(target_os = "windows")]
+    for (code, ch) in [("%3A", ":"), ("%2A", "*"), ("%3F", "?"), ("%22", "\""), ("%3C", "<"), ("%3E", ">"), ("%7C", "|"), ("%2E", "."), ("%20", " ")] { result = result.replace(code, ch); }
+    result
 }
 
 // Serialize library mutations, including clearing/deleting during a download.
@@ -102,15 +118,8 @@ fn copy_package(mut reader: impl Read, path: &std::path::Path) -> Result<(), Str
             return Err("Downloaded file is not a skin archive".into());
         }
         // Listing validates the central directory without extracting untrusted files.
-        let check = std::process::Command::new("/usr/bin/unzip")
-            .args(["-Z1"])
-            .arg(&temp)
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !check.status.success() {
-            return Err("Downloaded archive is incomplete".into());
-        }
-        fs::rename(&temp, path).map_err(|e| e.to_string())?;
+        crate::archive::listing(&temp)?;
+        replace_file(&temp, path)?;
         Ok(())
     })();
     // Only remove temporary files created by this call.
@@ -119,6 +128,20 @@ fn copy_package(mut reader: impl Read, path: &std::path::Path) -> Result<(), Str
         let _ = fs::remove_file(&temp);
     }
     result
+}
+fn replace_file(from: &std::path::Path, to: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        #[link(name = "kernel32")]
+        extern "system" { fn MoveFileExW(from: *const u16, to: *const u16, flags: u32) -> i32; }
+        let from: Vec<u16> = from.as_os_str().encode_wide().chain(Some(0)).collect();
+        let to: Vec<u16> = to.as_os_str().encode_wide().chain(Some(0)).collect();
+        if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), 1 | 8) } == 0 { return Err(std::io::Error::last_os_error().to_string()); }
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    { fs::rename(from, to).map_err(|e| e.to_string()) }
 }
 fn download_to(
     base: &std::path::Path,
@@ -388,19 +411,20 @@ mod tests {
         let fixture = dir.join("fixture.txt");
         fs::write(&fixture, b"skin fixture").unwrap();
         let archive = dir.join("valid.zip");
-        assert!(std::process::Command::new("/usr/bin/zip")
-            .current_dir(&dir)
-            .args(["-q", "valid.zip", "fixture.txt"])
-            .status()
-            .unwrap()
-            .success());
-        let destination = dir.join("installed.zip");
-        fs::write(&destination, b"previous").unwrap();
+        let mut zip = zip::ZipWriter::new(fs::File::create(&archive).unwrap());
+        zip.start_file("fixture.txt", zip::write::SimpleFileOptions::default()).unwrap(); zip.write_all(b"skin fixture").unwrap(); zip.finish().unwrap();
+        let destination = dir.join("installed.zip"); fs::write(&destination, b"previous").unwrap();
         copy_package(fs::File::open(&archive).unwrap(), &destination).unwrap();
         assert_eq!(fs::read(&destination).unwrap(), fs::read(&archive).unwrap());
         assert!(!destination.with_extension("download").exists());
         fs::remove_dir_all(dir).unwrap();
     }
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_catalog_names_round_trip_without_invalid_characters() {
+        for name in ["PROJECT: Ashe", "K/DA Kai'Sa", "CON", "name.", "name "] { let encoded = encode_path(name).unwrap(); assert!(!encoded.contains(':')); assert_eq!(decode_path(&encoded), name); }
+    }
+    #[cfg(unix)]
     #[test]
     fn library_does_not_follow_symlink_directories() {
         let dir = temp();

@@ -2,7 +2,6 @@ use crate::state::CustomEntry;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
@@ -10,15 +9,7 @@ static IMPORT_LOCK: Mutex<()> = Mutex::new(());
 const KINDS: &[&str] = &["skin", "announcer", "voice", "map", "other"];
 
 fn archive_listing(path: &Path) -> Result<String, String> {
-    let output = Command::new("/usr/bin/unzip")
-        .arg("-Z1")
-        .arg(path)
-        .output()
-        .map_err(|_| "Could not inspect this archive.".to_string())?;
-    if !output.status.success() {
-        return Err("This file is not a valid mod archive.".into());
-    }
-    let listing = String::from_utf8_lossy(&output.stdout).into_owned();
+    let listing = crate::archive::listing(path)?;
     validate_listing(&listing)?;
     Ok(listing)
 }
@@ -415,13 +406,13 @@ mod tests {
         std::fs::create_dir_all(root.join("imports")).unwrap();
         std::fs::write(root.join("META/info.json"), b"{}").unwrap();
         std::fs::write(root.join("WAD/Ahri.wad.client/a.bin"), b"fixture").unwrap();
-        assert!(std::process::Command::new("/usr/bin/zip")
-            .current_dir(&root)
-            .args(["-qr", "voice.fantome", "WAD", "META"])
-            .status()
-            .unwrap()
-            .success());
         let source = root.join("voice.fantome");
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&source).unwrap());
+        for name in ["META/info.json", "WAD/Ahri.wad.client/a.bin"] {
+            use std::io::Write;
+            zip.start_file(name, zip::write::SimpleFileOptions::default()).unwrap(); zip.write_all(b"fixture").unwrap();
+        }
+        zip.finish().unwrap();
         let first =
             import_into(&root.join("imports"), &source, "Fox", Some("voice".into())).unwrap();
         assert_eq!(first.kind, "voice");
@@ -528,12 +519,12 @@ mod tests {
         std::fs::create_dir_all(root.join("META")).unwrap();
         std::fs::write(root.join("META/info.json"), b"{}").unwrap();
         let archive = root.join("fixture.fantome");
-        let status = std::process::Command::new("/usr/bin/zip")
-            .current_dir(&root)
-            .args(["-qr", "fixture.fantome", "WAD", "META"])
-            .status()
-            .unwrap();
-        assert!(status.success());
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&archive).unwrap());
+        for name in ["META/info.json", "WAD/Camille.wad.client/aabbcc.bin"] {
+            use std::io::Write;
+            zip.start_file(name, zip::write::SimpleFileOptions::default()).unwrap(); zip.write_all(b"fixture").unwrap();
+        }
+        zip.finish().unwrap();
         let targets = archive_targets(&archive);
         std::fs::remove_dir_all(root).unwrap();
         assert_eq!(targets, vec!["camille"]);

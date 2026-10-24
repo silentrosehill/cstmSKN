@@ -5,7 +5,7 @@ description = "A lightweight desktop app to browse and apply League of Legends s
 authors = ["you"]
 license = "GPL-3.0"
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.85"
 
 [lib]
 name = "cstmskn_lib"
@@ -23,5 +23,13 @@ tauri-plugin-dialog = "2"
 tauri-plugin-autostart = "2"
 ureq = "2"
 libc = "0.2"
-tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+tauri-plugin-updater = "2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+camino = "1"
+ltk_overlay = "=0.17.0"
+winreg = "0.55"

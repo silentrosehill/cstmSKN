@@ -150,12 +150,13 @@ export default function Settings({
     try {
       const selected = await open({
         multiple: false,
+        directory: /Win/.test(navigator.platform),
         title: "Select League of Legends app",
       });
       if (selected) {
         const valid = await onPathChange(selected as string);
         if (!valid) {
-          setPathError("Invalid game path: LeagueofLegends.app not found");
+          setPathError("Select the League installation or its Game folder.");
         }
       }
     } catch {
@@ -282,7 +283,7 @@ export default function Settings({
           <p>Open your champion’s skins when you lock in.</p>
           <small>
             {!native
-              ? "Available in the Mac app."
+              ? "Available in the desktop app."
               : !followClient
                 ? "Off"
                 : clientStatus === "offline"

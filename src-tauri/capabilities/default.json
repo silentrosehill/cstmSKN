@@ -15,5 +15,9 @@
     "core:window:allow-set-theme",
     "updater:default",
     "process:allow-restart"
+  ],
+  "platforms": [
+    "macOS",
+    "linux"
   ]
 }

@@ -91,7 +91,7 @@ export default function StatusBar({
         aria-label="Open patcher health"
         title={
           !native
-            ? "Patcher health · Mac app only"
+            ? "Patcher health · Desktop app only"
             : health.error
               ? "Patcher health check unavailable"
               : health.checks.some((c) => c.state === "error")

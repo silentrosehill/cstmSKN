@@ -2,6 +2,10 @@ pub mod appearance;
 pub mod client;
 pub mod customs;
 pub mod game_path;
+#[cfg(not(target_os = "windows"))]
+pub mod patcher;
+#[cfg(target_os = "windows")]
+#[path = "patcher_windows.rs"]
 pub mod patcher;
 pub mod skins;
 
@@ -15,6 +19,16 @@ pub fn open_url(url: String) -> Result<(), String> {
     if !url.starts_with("https://") || url.chars().any(char::is_control) {
         return Err("Only secure web links can be opened".into());
     }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        // Fixed PowerShell code; the URL is supplied via an environment value.
+        Command::new("powershell.exe").creation_flags(0x08000000)
+            .args(["-NoProfile", "-NonInteractive", "-Command", "Start-Process -FilePath $env:CSTMSKN_OPEN_URL"])
+            .env("CSTMSKN_OPEN_URL", &url).spawn().map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
     // stat -f '%Su' /dev/console gives the user who owns the GUI session.
     let real_user = Command::new("/usr/bin/stat")
         .args(["-f", "%Su", "/dev/console"])
@@ -34,6 +48,7 @@ pub fn open_url(url: String) -> Result<(), String> {
             .args(["--", &url])
             .spawn()
             .map_err(|e| e.to_string())?;
+    }
     }
     Ok(())
 }

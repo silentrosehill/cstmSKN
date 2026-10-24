@@ -1,5 +1,6 @@
 import { ArrowDownToLine, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import type { AppUpdates } from "../hooks/useAppUpdates";
+import { openUrl } from "../lib/commands";
 import { version } from "../../package.json";
 import SystemIcon from "./SystemIcon";
 export default function AppUpdateCard({
@@ -12,6 +13,11 @@ export default function AppUpdateCard({
   blockedReason: string | null;
 }) {
   const { state } = updates;
+  if (/Win/.test(navigator.platform)) return <section className="software-update" aria-label="Software Update">
+    <div className="software-update-row"><div className="software-update-title"><h2>Software Update</h2><p>cstmSKN {version} · Windows preview</p></div>
+      <button className="quiet-button" onClick={() => void openUrl("https://github.com/silentrosehill/cstmSKN/releases/tag/v0.2.0-alpha.1").catch(() => {})}>View Windows releases</button></div>
+    <div className="software-update-status"><p>Install preview updates from GitHub. Your library stays on this PC.</p></div>
+  </section>;
   const available = state.stage === "available";
   return (
     <section className="software-update" aria-label="Software Update">
@@ -52,7 +58,7 @@ export default function AppUpdateCard({
       </div>
       <div className="software-update-status" aria-live="polite">
         {!native ? (
-          <p>Open the Mac app to check for updates.</p>
+          <p>Open the desktop app to check for updates.</p>
         ) : state.stage === "current" ? (
           <p className="update-current">
             <CheckCircle2 size={13} />

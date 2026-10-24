@@ -1,0 +1,37 @@
+name: Windows native injector prototype
+on:
+  push:
+    branches: [windows-manager-integration]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-prototype-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  fixture:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Compile our x64 host, DLL and fixture from source
+        run: |
+          cmake -S native/windows-prototype -B native-build -A x64
+          cmake --build native-build --config Release
+      - name: Exercise real DLL loading, redirection and cleanup
+        run: ctest --test-dir native-build -C Release --output-on-failure
+      - name: Reject unsupported targets
+        shell: pwsh
+        run: |
+          & native-build/Release/cstm-injector-prototype.exe --pid 1234
+          if ($LASTEXITCODE -ne 2) { throw "The fixture host must reject arbitrary target arguments" }
+          exit 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cstmSKN-native-injector-fixture-only
+          path: |
+            native-build/Release/cstm-injector-prototype.exe
+            native-build/Release/cstm-overlay-prototype.dll
+            native-build/Release/cstm-injector-fixture.exe
+            native/windows-prototype/README.md
+          if-no-files-found: error

@@ -25,6 +25,9 @@ pub fn status(line: &str) -> Option<PatcherStatus> {
                 "injected" => Some(PatcherStatus::Patching),
                 "waiting" => Some(PatcherStatus::InGame),
                 "exited" => Some(PatcherStatus::GameExited),
+                "failed" if message.contains("SetWindowsHookEx") => Some(PatcherStatus::Error(
+                    "League is running as administrator, so the engine must too. Turn on “Run engine as administrator” in Settings → Windows engine, or stop running League as administrator.".into(),
+                )),
                 "failed" => Some(PatcherStatus::Error(format!("LTK: {message}"))),
                 _ => None,
             }
@@ -43,6 +46,13 @@ mod tests {
         for path in ["", "overlay\nstart passive", "overlay\rstop", "bad\0path"] {
             assert!(configure(path).is_err());
         }
+    }
+    #[test]
+    fn hook_failure_explains_required_elevation() {
+        assert_eq!(
+            status("status 1.0 failed SetWindowsHookEx failed: 0x00000000"),
+            Some(PatcherStatus::Error("League is running as administrator, so the engine must too. Turn on “Run engine as administrator” in Settings → Windows engine, or stop running League as administrator.".into()))
+        );
     }
     #[test]
     fn maps_real_host_lifecycle_and_preserves_rejections() {

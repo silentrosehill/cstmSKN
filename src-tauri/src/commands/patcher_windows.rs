@@ -237,7 +237,20 @@ fn start(
                 return Ok(());
             }
             let config = crate::ltk_protocol::configure(built.overlay_root.as_str())?;
-            let mut child = Command::new(resource.join("ltk_patcher_host.exe"))
+            let elevate = super::engine::should_elevate(&app);
+            log(
+                &logfile,
+                if elevate {
+                    "Starting LTK host with --elevate (administrator mode)."
+                } else {
+                    "Starting LTK host with inherited app permissions."
+                },
+            );
+            let mut command = Command::new(resource.join("ltk_patcher_host.exe"));
+            if elevate {
+                command.arg("--elevate");
+            }
+            let mut child = command
                 .current_dir(&resource)
                 .creation_flags(0x08000000)
                 .stdin(Stdio::piped())
@@ -284,7 +297,6 @@ fn start(
                     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                         log(&output_log, &line);
                         if let Some(next) = crate::ltk_protocol::status(&line) {
-                            let exited = next == PatcherStatus::GameExited;
                             let failed = matches!(next, PatcherStatus::Error(_));
                             update(&output_state, generation, next);
                             if failed {
@@ -292,18 +304,6 @@ fn start(
                                 if let Ok(mut state) = output_state.lock() {
                                     if state.patcher_gen == generation {
                                         state.patcher_pid = None;
-                                    }
-                                }
-                            }
-                            if exited && current(&output_state, generation) {
-                                if let Ok(mut slot) = session().lock() {
-                                    if let Some(active) =
-                                        slot.as_mut().filter(|s| s.generation == generation)
-                                    {
-                                        if let Some(input) = active.child.stdin.as_mut() {
-                                            let _ = writeln!(input, "start scan");
-                                            let _ = input.flush();
-                                        }
                                     }
                                 }
                             }

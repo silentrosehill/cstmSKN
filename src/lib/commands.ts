@@ -131,3 +131,16 @@ export async function openUrl(url: string): Promise<void> {
 export async function listReleases(): Promise<ReleaseInfo[]> {
   return invoke<ReleaseInfo[]>("list_releases");
 }
+
+export interface WindowsElevation {
+  optIn: boolean;
+  leagueRunsAsAdmin: boolean;
+}
+
+export async function getWindowsElevation(): Promise<WindowsElevation> {
+  return invoke<WindowsElevation>("get_windows_elevation");
+}
+
+export async function setWindowsElevation(enabled: boolean): Promise<void> {
+  return invoke("set_windows_elevation", { enabled });
+}

@@ -69,7 +69,7 @@ export default function App() {
   const customs = useCustoms();
   const { champions } = useChampions();
   const native = isTauri();
-  const [ltkWelcome, setLtkWelcome] = useState(() => native && isWindows && readStored("cstm:ltk-welcome-v1", false) !== true);
+  const [ltkWelcome, setLtkWelcome] = useState(() => native && isWindows && readStored<boolean>("cstm:ltk-welcome-v1", false) !== true);
   function closeLtkWelcome() {
     setItem("cstm:ltk-welcome-v1", JSON.stringify(true));
     setLtkWelcome(false);

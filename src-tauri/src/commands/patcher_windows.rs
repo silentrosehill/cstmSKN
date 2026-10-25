@@ -1,4 +1,4 @@
-//! Windows adapter: LeagueToolkit overlay builder + the separately licensed Native host.
+//! Windows Apply/Stop: overlay builder + official LTK patcher host, controlled over stdin/stdout.
 use crate::state::{AppState, PatcherStatus};
 use camino::Utf8PathBuf;
 use ltk_overlay::{EnabledMod, FantomeContent, OverlayBuilder};
@@ -163,16 +163,15 @@ fn start(
     let _companion_gate = super::ltk_companion::engine_gate()
         .lock()
         .map_err(|e| e.to_string())?;
-    if super::ltk_companion::running()? {
-        return Err("LTK Manager is running. Quit it from its system tray before using the experimental engine. LTK uses its own skin selections.".into());
-    }
     if paths.is_empty() {
         return Err("No skins selected".into());
     }
     let resource = resources(&app)?;
-    for name in ["cstm-native-host.exe", "cstm-native-overlay.dll"] {
+    for name in ["ltk_patcher_host.exe", "ltk_patcher_dll.dll"] {
         if !resource.join(name).is_file() {
-            return Err("Native engine files are missing. Reinstall the Windows preview.".into());
+            return Err(
+                "LTK patcher files are missing. Repair the official LTK installation.".into(),
+            );
         }
     }
     for path in &paths {
@@ -248,15 +247,9 @@ fn start(
             if !current(&state, generation) {
                 return Ok(());
             }
-            let config = crate::native_protocol::configure(&game, built.overlay_root.as_str())?;
-            log(
-                &logfile,
-                &format!(
-                    "Starting source-native engine; cstmSKN elevated={}",
-                    super::engine::app_is_elevated()
-                ),
-            );
-            let mut command = crate::native_protocol::host_command(&resource, false);
+            let config = crate::ltk_protocol::configure(built.overlay_root.as_str())?;
+            log(&logfile, "Starting official LTK patcher in the background using its original installed files.");
+            let mut command = crate::ltk_protocol::host_command(&resource);
             update(&state, generation, PatcherStatus::StartingEngine);
             let mut child = command
                 .current_dir(&resource)
@@ -267,18 +260,18 @@ fn start(
                 .spawn()
                 .map_err(|e| {
                     e.raw_os_error()
-                        .and_then(|code| crate::native_protocol::loader_error(code as u32))
-                        .unwrap_or_else(|| format!("Could not start native engine: {e}"))
+                        .and_then(|code| crate::ltk_protocol::loader_error(code as u32))
+                        .unwrap_or_else(|| format!("Could not start LTK patcher: {e}"))
                 })?;
             if let Err(e) = child
                 .stdin
                 .as_mut()
-                .ok_or("Native engine input closed")
+                .ok_or("LTK patcher input closed")
                 .and_then(|input| {
                     input
                         .write_all(config.as_bytes())
                         .and_then(|_| input.flush())
-                        .map_err(|_| "Could not configure native engine")
+                        .map_err(|_| "Could not configure LTK patcher")
                 })
             {
                 let _ = child.kill();
@@ -308,7 +301,7 @@ fn start(
                 if let Some(stdout) = stdout {
                     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                         log(&output_log, &line);
-                        if let Some(next) = crate::native_protocol::status(&line) {
+                        if let Some(next) = crate::ltk_protocol::status(&line) {
                             let failed = matches!(next, PatcherStatus::Error(_));
                             update(&output_state, generation, next);
                             if failed {
@@ -329,7 +322,7 @@ fn start(
                 if let Some(stderr) = stderr {
                     for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                         log(&error_log, &line);
-                        if let Some(pid) = crate::native_protocol::hook_target_pid(&line) {
+                        if let Some(pid) = crate::ltk_protocol::hook_target_pid(&line) {
                             log(
                                 &error_log,
                                 &format!(
@@ -341,7 +334,7 @@ fn start(
                         // stderr is diagnostic-only: do not let lifecycle chatter
                         // on this stream overwrite stdout's session state.
                         if let Some(next @ PatcherStatus::Error(_)) =
-                            crate::native_protocol::status(&line)
+                            crate::ltk_protocol::status(&line)
                         {
                             update(&error_state, generation, next);
                             let _ = stop_host_for(Some(generation));
@@ -363,7 +356,7 @@ fn start(
                     break;
                 };
                 if let Some(exit) = active.child.try_wait().map_err(|e| e.to_string())? {
-                    log(&logfile, &format!("Native host exit: {exit}"));
+                    log(&logfile, &format!("LTK host exit: {exit}"));
                     slot.take();
                     let mut s = state.lock().map_err(|e| e.to_string())?;
                     if s.patcher_gen == generation {
@@ -374,7 +367,7 @@ fn start(
                             {
                                 PatcherStatus::Idle
                             } else {
-                                PatcherStatus::Error(crate::native_protocol::host_exit_error(
+                                PatcherStatus::Error(crate::ltk_protocol::host_exit_error(
                                     exit.code(),
                                 ))
                             };
@@ -388,11 +381,11 @@ fn start(
                         == PatcherStatus::StartingEngine;
                 if startup_timed_out {
                     update(&state, generation, PatcherStatus::Error(
-                        "The native engine did not finish starting. No skins were applied. Check patcher diagnostics and any Windows security notification.".into(),
+                        "The LTK patcher did not finish starting. No skins were applied. Check patcher diagnostics and any Windows security notification.".into(),
                     ));
                     log(
                         &logfile,
-                        "Native engine startup timed out before its scanning acknowledgement.",
+                        "LTK patcher startup timed out before its scanning acknowledgement.",
                     );
                     stop_host_for(Some(generation))?;
                     if let Ok(mut s) = state.lock() {
@@ -507,22 +500,21 @@ pub async fn get_patcher_health(
         let s = state.lock().map_err(|e| e.to_string())?;
         (s.game_path.clone(), s.patcher_status.clone())
     };
-    let resources = resources(&app)?;
-    let permissions = if super::engine::app_is_elevated() {
-        "cstmSKN and its native engine run as administrator."
-    } else {
-        "cstmSKN and its native engine run as a standard user. If League runs elevated, restart cstmSKN using Run as administrator."
-    }.to_string();
+    let resource_app = app.clone();
     let data = base(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
+        let official = resources(&resource_app);
         let check = |id, label, ok, detail: &str| HealthCheck {
             id,
             label,
             state: if ok { "ok" } else { "error" },
             detail: detail.into(),
         };
-        let engine = resources.join("ltk_patcher_host.exe").is_file()
-            && resources.join("ltk_patcher_dll.dll").is_file();
+        let engine = official.is_ok();
+        let engine_detail = official
+            .as_ref()
+            .map(|_| "Official LTK host and DLL are installed and signed.".to_string())
+            .unwrap_or_else(|e| e.clone());
         let probe = data.join(".write-check");
         let writable = fs::write(&probe, b"").is_ok();
         let _ = fs::remove_file(probe);
@@ -545,17 +537,7 @@ pub async fn get_patcher_health(
                     "Choose your League installation in Settings."
                 },
             ),
-            check(
-                "engine",
-                "Native injector",
-                engine,
-                if engine {
-                    "Native host and DLL are installed."
-                } else {
-                    "Reinstall the Windows preview."
-                },
-            ),
-            check("permissions", "Game access", true, &permissions),
+            check("engine", "LTK patcher", engine, &engine_detail),
             check(
                 "storage",
                 "Mod storage",

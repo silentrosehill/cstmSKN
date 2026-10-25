@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { applySkins, stopPatcher as stopPatcherCmd, getPatcherStatus } from "../lib/commands";
 import type { PatcherStatus } from "../types";
+import { isWindows } from "./useWindowsUpdate";
 
 export function usePatcher() {
   const [status, setStatus] = useState<PatcherStatus>("Idle");
@@ -35,7 +36,7 @@ export function usePatcher() {
             if (request !== generation.current) return;
             setStatus(next);
             if (typeof next === "object" && "Error" in next) setError(next.Error);
-            if (next === "Idle") {
+            if (next === "Idle" || (isWindows && typeof next === "object" && "Error" in next)) {
               stopPolling();
               return;
             }
@@ -68,6 +69,6 @@ export function usePatcher() {
       if (request === generation.current) setError(String(e));
     }
   }, [stopPolling]);
-  const isActive = status !== "Idle";
+  const isActive = status !== "Idle" && !(isWindows && typeof status === "object" && "Error" in status);
   return { status, error, apply, stop, isActive };
 }

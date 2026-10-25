@@ -1,3 +1,5 @@
+Legacy experiment: this engine is no longer built or shipped in cstmSKN’s Windows LTK release.
+
 # cstmSKN native Windows engine
 
 The source-built host/DLL now have an app runtime mode as well as controlled

@@ -49,10 +49,18 @@ Source archive: {manifest['correspondingSource']}
 Full GPL text accompanies this file. Patcher binaries have the separate license:
 https://github.com/LeagueToolkit/ltk-manager/blob/v{VERSION}/LTK-PATCHER-LICENSE.md
 
-Use cstmSKN Settings → LTK companion → Install LTK Manager to run this official
-installer. Windows and initial LTK setup remain visible. This does not connect
-cstmSKN's skin selections or Apply/Stop to LTK's patcher.
+Use cstmSKN’s first-run setup or Settings → LTK patcher → Install LTK Manager to run this official
+installer. Windows and initial LTK setup remain visible. cstmSKN builds the selected overlay and controls the installed LTK patcher
+host through its stdin/stdout protocol, without a separate Manager window.
 """, encoding="utf-8")
+(DEST / "patcher-integration.json").write_text(json.dumps({
+    "patcher": "Official installed LTK host and DLL",
+    "directRuntimeFilesBundled": False,
+    "managerWindowRequired": False,
+    "protocol": "stdin/stdout config/start/stop",
+    "hookFlags": 4,
+    "architectureReference": "https://github.com/Alban1911/Rose/blob/12a0d46bfc63387a39479f395e2724b324d3d095/injection/overlay/overlay_manager.py",
+}, indent=2) + "\n", encoding="utf-8")
 print(f"Prepared complete official LTK {VERSION} installer; SHA-256 verified, no binary modifications.")
 
 if "--test-fixture" in sys.argv:

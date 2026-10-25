@@ -31,8 +31,6 @@ jobs:
           cache-on-failure: true
       - name: Install frontend dependencies
         run: npm ci
-      - name: Build and test source-native Windows engine
-        run: python scripts/prepare-native-windows-engine.py
       - name: Include complete official LTK installer with original signature
         run: |
           python scripts/prepare-ltk-companion.py --test-fixture
@@ -40,17 +38,19 @@ jobs:
           if ((Get-AuthenticodeSignature -LiteralPath $installer).Status -ne 'Valid') { throw 'Official LTK installer signature is invalid' }
       - name: Frontend regression tests
         run: npm test
-      - name: Windows native regression tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
       - name: Collect open-source license notices
         run: python scripts/windows-license-notices.py
+      - name: Windows native regression tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
+      - name: Verify official LTK background protocol
+        run: ./scripts/test-official-ltk-host.ps1
       - name: Build Windows installer
         run: npm run tauri -- build --bundles nsis
       - name: Verify package and document provenance
         run: |
           New-Item -ItemType Directory -Force release-windows | Out-Null
           Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe release-windows/cstmSKN-Windows-x64-setup.exe
-          Copy-Item src-tauri/resources/windows/provenance.json release-windows/engine-provenance.json
+          Copy-Item src-tauri/resources/ltk-companion/patcher-integration.json release-windows/patcher-integration.json
           Copy-Item src-tauri/resources/ltk-companion/provenance.json release-windows/ltk-companion-provenance.json
           Copy-Item licenses/GPL-3.0.txt release-windows/LICENSE.txt
           Copy-Item WINDOWS.md release-windows/
@@ -58,13 +58,15 @@ jobs:
           $installer = Get-Item release-windows/cstmSKN-Windows-x64-setup.exe
           if ($installer.Length -lt 1000000) { throw 'Installer is unexpectedly small' }
           # Portable build: the app plus its engine folder, no installer needed.
-          New-Item -ItemType Directory -Force portable/cstmSKN/native | Out-Null
+          New-Item -ItemType Directory -Force portable/cstmSKN | Out-Null
           Copy-Item src-tauri/target/release/cstmSKN.exe portable/cstmSKN/
-          Copy-Item src-tauri/resources/windows/* portable/cstmSKN/native/
+          Copy-Item src-tauri/resources/windows/THIRD-PARTY-NOTICES.md portable/cstmSKN/
           Copy-Item -Recurse src-tauri/resources/ltk-companion portable/cstmSKN/ltk-companion
           $companion = 'portable/cstmSKN/ltk-companion/LTK.Manager_1.30.4_x64-setup.exe'
           $expected = '0007230f8772c846d586f456aedee5846f7dbf4719715940e73bb073ae4eff23'
           if ((Get-FileHash -LiteralPath $companion -Algorithm SHA256).Hash.ToLower() -ne $expected) { throw 'Portable app did not preserve the official installer' }
+          $looseRuntimes = @(Get-ChildItem portable/cstmSKN -Recurse -File | Where-Object { $_.Name -in @('cstm-native-host.exe', 'cstm-native-overlay.dll', 'ltk_patcher_host.exe', 'ltk_patcher_dll.dll') })
+          if ($looseRuntimes.Count -ne 0) { throw 'App package must use installed LTK, with no loose patcher binaries' }
           Copy-Item WINDOWS.md portable/cstmSKN/
           $portableExe = (Resolve-Path portable/cstmSKN/cstmSKN.exe).Path
           $stub = Start-Process $portableExe -PassThru
@@ -81,7 +83,7 @@ jobs:
           $sums | Out-File -Encoding ascii release-windows/SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cstmSKN-Windows-native-integrated
+          name: cstmSKN-Windows-LTK-integrated
           path: release-windows/*
           if-no-files-found: error
           retention-days: 30

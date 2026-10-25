@@ -13,7 +13,7 @@ import {
   clearAllCustoms,
 } from "../lib/commands";
 import Toast from "./Toast";
-import WindowsEngineCard from "./WindowsEngineCard";
+import LtkCompanionCard from "./LtkCompanionCard";
 import AppUpdateCard from "./AppUpdateCard";
 import SidebarSettings from "./SidebarSettings";
 import type { SidebarItem } from "./SidebarSettings";
@@ -278,7 +278,7 @@ export default function Settings({
         onReset={onResetTabs}
       />
       {/Win/.test(navigator.platform) && (
-        <WindowsEngineCard native={native} active={patcherActive} />
+        <LtkCompanionCard native={native} active={patcherActive} />
       )}
       <AppUpdateCard updates={updates} native={native} blockedReason={updateBlockedReason} />
       <section className="client-settings">

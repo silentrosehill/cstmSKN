@@ -29,8 +29,9 @@
     ],
     "externalBin": [],
     "resources": {
-      "resources/windows/": "native/",
-      "resources/ltk-companion/": "ltk-companion/"
+      "resources/ltk-companion/": "ltk-companion/",
+      "resources/windows/THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md",
+      "resources/windows/dependency-licenses.json": "dependency-licenses.json"
     },
     "icon": [
       "icons/icon.ico"

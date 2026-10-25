@@ -36,6 +36,7 @@ import { sanitizeNavigation, moveTab, toggleTab } from "./lib/navigation";
 import type { TabId, NavigationPreferences } from "./lib/navigation";
 const Settings = lazy(() => import("./components/Settings"));
 import AppUpdateDialog from "./components/AppUpdateDialog";
+import LtkWelcome from "./components/LtkWelcome";
 import { useAppUpdates } from "./hooks/useAppUpdates";
 import { isWindows, useWindowsUpdate } from "./hooks/useWindowsUpdate";
 const EnabledSkins = lazy(() => import("./components/EnabledSkins"));
@@ -68,6 +69,11 @@ export default function App() {
   const customs = useCustoms();
   const { champions } = useChampions();
   const native = isTauri();
+  const [ltkWelcome, setLtkWelcome] = useState(() => native && isWindows && readStored("cstm:ltk-welcome-v1", false) !== true);
+  function closeLtkWelcome() {
+    setItem("cstm:ltk-welcome-v1", JSON.stringify(true));
+    setLtkWelcome(false);
+  }
   const [importing, setImporting] = useState(false);
   const importingRef = useRef(false);
   const [reviewNames, setReviewNames] = useState<string[]>([]);
@@ -580,8 +586,9 @@ export default function App() {
     })();
   });
 
-  return (
+  return (<>
     <div
+      inert={ltkWelcome && !updates.blocking}
       className={`glass-app ${native ? "native" : ""} ${sidebar.collapsed ? "sidebar-collapsed" : ""} ${sidebar.resizing ? "sidebar-resizing" : ""}`}
       style={{ "--sidebar-width": `${sidebar.width}px` } as CSSProperties}
     >
@@ -707,5 +714,7 @@ export default function App() {
         </div>
       )}
     </div>
+    {ltkWelcome && !updates.blocking && <LtkWelcome onClose={closeLtkWelcome} />}
+    </>
   );
 }

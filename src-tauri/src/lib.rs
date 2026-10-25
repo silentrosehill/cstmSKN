@@ -1,7 +1,7 @@
 mod archive;
 mod commands;
 #[cfg(any(target_os = "windows", test))]
-mod native_protocol;
+mod ltk_protocol;
 mod state;
 #[cfg(target_os = "windows")]
 mod windows_ltk;
@@ -387,8 +387,6 @@ pub fn run() {
             None,
         ))
         .setup(|app| {
-            #[cfg(target_os = "windows")]
-            commands::ltk_companion::startup(app.handle().clone());
             // "Open at login" stores the executable's path. Rewrite it so it follows the
             // app across updates (the executable used to be named "zushi").
             use tauri_plugin_autostart::ManagerExt;
@@ -403,14 +401,9 @@ pub fn run() {
         .manage(Arc::new(Mutex::new(AppState::default())))
         .invoke_handler(tauri::generate_handler![
             commands::appearance::set_sidebar_glass,
-            commands::engine::get_windows_engine,
-            commands::engine::set_windows_engine,
-            commands::engine::get_windows_elevation,
-            commands::engine::set_windows_elevation,
             commands::ltk_companion::get_ltk_companion,
             commands::ltk_companion::install_ltk_companion,
             commands::ltk_companion::open_ltk_companion,
-            commands::ltk_companion::set_ltk_companion,
             commands::game_path::detect_game_path,
             commands::game_path::validate_game_path,
             commands::game_path::set_game_path,

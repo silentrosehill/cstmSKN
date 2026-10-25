@@ -29,6 +29,8 @@ jobs:
         run: python scripts/prepare-ltk-companion.py --test-fixture
       - name: Check app/native-engine protocol and regressions
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
+      - name: Probe official LTK host protocol without a game
+        run: ./scripts/test-official-ltk-host.ps1
   fixture:
     runs-on: windows-latest
     timeout-minutes: 10

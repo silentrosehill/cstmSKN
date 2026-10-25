@@ -61,4 +61,4 @@ if "--test-fixture" in sys.argv:
     sevenzip = shutil.which("7z") or str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "7-Zip/7z.exe")
     fixture = ROOT / "native-build/ltk-official-fixture"
     fixture.mkdir(parents=True, exist_ok=True)
-    subprocess.run([sevenzip, "x", "-y", f"-o{fixture}", str(installer), "ltk-manager.exe"], check=True)
+    subprocess.run([sevenzip, "x", "-y", f"-o{fixture}", str(installer), "ltk-manager.exe", "ltk_patcher_host.exe", "ltk_patcher_dll.dll"], check=True)

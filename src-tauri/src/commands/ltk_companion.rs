@@ -59,7 +59,7 @@ fn tray_settings(bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
             .and_then(|v| v.as_str())
             .is_none_or(|v| v.is_empty())
     {
-        return Err("Complete LTK Manager’s one-time setup, then quit it and retry here.".into());
+        return Err("Choose Open LTK Manager to complete its one-time setup, then quit it and start it in the background.".into());
     }
     if object.get("startInTray").and_then(|v| v.as_bool()) == Some(true)
         && object
@@ -79,17 +79,10 @@ fn tray_settings(bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
 #[cfg(target_os = "windows")]
 mod platform {
     use super::*;
-    use std::{
-        fs,
-        io::Write,
-        os::windows::process::CommandExt,
-        process::{Command, Stdio},
-        time::{Duration, Instant},
-    };
+    use std::{fs, io::Write, time::Duration};
 
-    #[derive(serde::Deserialize)]
     pub(super) struct Installation {
-        pub path: Option<String>,
+        pub path: Option<std::path::PathBuf>,
         pub running: bool,
     }
 
@@ -121,40 +114,26 @@ mod platform {
         Ok(())
     }
 
-    /// The script contains no interpolated user input and does not change files.
     pub(super) fn inspect(process_only: bool) -> Result<Installation, String> {
-        let mut child = Command::new(super::super::powershell())
-            .creation_flags(0x08000000)
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                include_str!("ltk_companion_inspect.ps1"),
-            ])
-            .stdin(Stdio::null())
-            .env(
-                "CSTMSKN_LTK_PROCESS_ONLY",
-                if process_only { "1" } else { "0" },
-            )
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        let deadline = Instant::now() + Duration::from_secs(20);
-        while child.try_wait().map_err(|e| e.to_string())?.is_none() {
-            if Instant::now() >= deadline {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err("LTK installation check timed out. Retry in Settings.".into());
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-        let result = child.wait_with_output().map_err(|e| e.to_string())?;
-        if !result.status.success() {
-            return Err("Could not verify the installed LTK Manager. Install the official signed release (1.30.4 or later).".into());
-        }
-        serde_json::from_slice(&result.stdout)
-            .map_err(|_| "Invalid LTK installation check response.".into())
+        let running = crate::windows_ltk::running()?;
+        let path = if running || process_only {
+            None
+        } else {
+            crate::windows_ltk::locate()?
+        };
+        Ok(Installation { path, running })
+    }
+
+    pub(super) fn open() -> Result<String, String> {
+        let _lock = LaunchLock::acquire()?;
+        let exe = crate::windows_ltk::locate()?
+            .ok_or("LTK Manager was not found. Use Install LTK Manager first.")?;
+        crate::windows_shell::open_companion(&exe)
+            .map_err(|e| format!("Windows could not open LTK Manager: {e}"))?;
+        Ok(
+            "Opened LTK Manager. Complete its setup, quit it, then choose Start in background."
+                .into(),
+        )
     }
 
     // A named lock also serializes startup across multiple cstmSKN processes.
@@ -201,17 +180,15 @@ mod platform {
                     .into(),
             });
         }
-        let exe = std::path::PathBuf::from(
-            found
-                .path
-                .ok_or("Install official LTK Manager to use background startup.")?,
-        );
+        let exe = found
+            .path
+            .ok_or("LTK Manager was not found. Use Install LTK Manager first.")?;
         let settings = std::path::PathBuf::from(
             std::env::var_os("APPDATA").ok_or("Windows app data folder is unavailable.")?,
         )
         .join("dev.leaguetoolkit.manager/settings.json");
         let bytes = fs::read(&settings)
-            .map_err(|_| "Complete LTK Manager’s one-time setup, then quit it and retry here.")?;
+            .map_err(|_| "Choose Open LTK Manager to complete its one-time setup, then quit it and start it in the background.")?;
         if let Some(updated) = tray_settings(&bytes)? {
             // Never rewrite a running manager's settings or overwrite our original backup.
             if inspect(true)?.running {
@@ -362,38 +339,41 @@ pub async fn install_ltk_companion(
     #[cfg(target_os = "windows")]
     {
         tauri::async_runtime::spawn_blocking(move || {
-            use std::{os::windows::process::CommandExt, process::{Command, Stdio}};
             let path = app.path().resource_dir().map_err(|e| e.to_string())?.join("ltk-companion").join(INSTALLER_NAME);
             #[cfg(debug_assertions)]
             let path = if path.is_file() { path } else {
                 std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/ltk-companion").join(INSTALLER_NAME)
             };
             platform::verify_installer(&path)?;
-            // Fixed code; the path is data, never PowerShell source. Start-Process
-            // retains Windows installer UI and ordinary UAC approval behavior.
-            let mut child = Command::new(super::powershell()).creation_flags(0x08000000)
-                .args(["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference='Stop'; if ((Get-AuthenticodeSignature -LiteralPath $env:CSTMSKN_LTK_INSTALLER).Status -ne 'Valid') { throw 'Official installer signature is invalid' }; Start-Process -FilePath $env:CSTMSKN_LTK_INSTALLER"])
-                .env("CSTMSKN_LTK_INSTALLER", &path)
-                .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
-                .spawn().map_err(|e| e.to_string())?;
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-            loop {
-                if let Some(exit) = child.try_wait().map_err(|e| e.to_string())? {
-                    if !exit.success() { return Err("Windows could not open the official installer or its signature check failed. Check Windows approval prompts before retrying.".into()); }
-                    return Ok("Official LTK installer opened. Complete installation and initial setup, quit LTK, then choose Retry background launch.".into());
-                }
-                if std::time::Instant::now() >= deadline {
-                    let _ = child.kill(); let _ = child.wait();
-                    return Err("Installer launch timed out. Check for a Windows approval prompt before trying again.".into());
-                }
-                std::thread::sleep(std::time::Duration::from_millis(50));
-            }
+            crate::windows_ltk::verify_signature(&path)?;
+            crate::windows_shell::open_installer(&path)?;
+            Ok("Official LTK installer opened. Complete installation, then choose Open LTK Manager to finish setup.".into())
         }).await.map_err(|e| e.to_string())?
     }
     #[cfg(not(target_os = "windows"))]
     {
         let _ = app;
         Err("The LTK companion installer is available on Windows.".into())
+    }
+}
+
+#[tauri::command]
+pub async fn open_ltk_companion(state: State<'_, Arc<Mutex<AppState>>>) -> Result<String, String> {
+    if !matches!(
+        state.lock().map_err(|e| e.to_string())?.patcher_status,
+        PatcherStatus::Idle | PatcherStatus::Error(_)
+    ) {
+        return Err("Stop the experimental engine before opening LTK Manager.".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        tauri::async_runtime::spawn_blocking(platform::open)
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("LTK Manager is available on Windows.".into())
     }
 }
 

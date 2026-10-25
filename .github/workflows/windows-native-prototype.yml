@@ -26,11 +26,9 @@ jobs:
       - name: Build source-native Windows app resources
         run: python scripts/prepare-native-windows-engine.py
       - name: Prepare complete official companion installer
-        run: python scripts/prepare-ltk-companion.py
+        run: python scripts/prepare-ltk-companion.py --test-fixture
       - name: Check app/native-engine protocol and regressions
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
-      - name: Verify companion discovery and duplicate-launch detection
-        run: ./scripts/test-ltk-companion-discovery.ps1
   fixture:
     runs-on: windows-latest
     timeout-minutes: 10

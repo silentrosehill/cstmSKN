@@ -32,6 +32,12 @@ export default function LtkCompanionCard({ native, active }: { native: boolean; 
     catch (e) { setError(String(e)); }
     finally { setBusy(false); }
   }
+  async function open() {
+    setBusy(true); setError(null); setInstallerMessage(null);
+    try { setInstallerMessage(await invoke<string>("open_ltk_companion")); }
+    catch (e) { setError(String(e)); }
+    finally { setBusy(false); }
+  }
   return <section className="software-update" aria-label="LTK background companion">
     <div className="software-update-row">
       <div className="software-update-title"><h2>LTK companion</h2><p>Launch official LTK Manager in the system tray.</p></div>
@@ -46,10 +52,12 @@ export default function LtkCompanionCard({ native, active }: { native: boolean; 
         <p>The complete official LTK Manager 1.30.4 installer is included. Install it here and complete setup once. Its signed files stay unchanged and its tray icon remains available.</p>
         <p>Turning this off prevents future launches and leaves a running companion open. Windows prompts and manually opened LTK windows remain visible. Apply and Stop control cstmSKN’s experimental engine only.</p>
       </details>
-      <div className="flex gap-2 mt-3"><button type="button" className="quiet-button" disabled={!native || busy || active}
+      <div className="flex flex-wrap gap-2 mt-3"><button type="button" className="quiet-button" disabled={!native || busy || active}
         onClick={() => void install()}>Install LTK Manager</button>
+      <button type="button" className="quiet-button" disabled={!native || busy || active}
+        onClick={() => void open()}>Open LTK Manager</button>
       {status?.enabled && <button type="button" className="quiet-button" disabled={!native || busy || active}
-        onClick={() => void change(true)}>Retry background launch</button>}</div>
+        onClick={() => void change(true)}>Start in background</button>}</div>
       {error && <p className="update-error" role="alert">{error}</p>}
     </div>
   </section>;

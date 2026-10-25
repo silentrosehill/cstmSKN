@@ -68,7 +68,7 @@ It does not substitute for a real game test.
 ```powershell
 npm ci
 python scripts/prepare-native-windows-engine.py
-python scripts/prepare-ltk-companion.py
+python scripts/prepare-ltk-companion.py --test-fixture
 cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
 python scripts/windows-license-notices.py
 npm test
@@ -91,6 +91,13 @@ both cstmSKN packages. Choose **Install LTK Manager** in Settings, complete its
 official installer and one-time setup, then quit it before the first background
 launch. Windows approval prompts and initial setup remain visible. Installing
 cstmSKN does not automatically install LTK or accept LTK setup on your behalf.
+Use **Open LTK Manager** to finish first-time setup or open its window when you
+need it. **Start in background** requires setup to be complete.
+
+Discovery, version-resource checks, signature verification and process detection
+use native Windows APIs. A restricted PowerShell session cannot stop discovery.
+Trust errors include the Windows code instead of a generic verification failure.
+Windows signature, certificate revocation and app-control policies remain in force.
 
 The `ltk-companion` resource folder retains the original official installer
 artifact unchanged, together with its provenance, full GPL text and corresponding

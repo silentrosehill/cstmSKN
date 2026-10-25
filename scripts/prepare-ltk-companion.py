@@ -3,6 +3,9 @@ from pathlib import Path
 import hashlib
 import json
 import shutil
+import subprocess
+import sys
+import os
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,3 +54,11 @@ installer. Windows and initial LTK setup remain visible. This does not connect
 cstmSKN's skin selections or Apply/Stop to LTK's patcher.
 """, encoding="utf-8")
 print(f"Prepared complete official LTK {VERSION} installer; SHA-256 verified, no binary modifications.")
+
+if "--test-fixture" in sys.argv:
+    # CI reads the real signed executable's resources and trust chain. This
+    # extracted test input stays outside app resources and is never packaged.
+    sevenzip = shutil.which("7z") or str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "7-Zip/7z.exe")
+    fixture = ROOT / "native-build/ltk-official-fixture"
+    fixture.mkdir(parents=True, exist_ok=True)
+    subprocess.run([sevenzip, "x", "-y", f"-o{fixture}", str(installer), "ltk-manager.exe"], check=True)

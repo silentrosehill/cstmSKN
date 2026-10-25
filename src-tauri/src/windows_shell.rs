@@ -217,6 +217,42 @@ pub(crate) fn launch_companion(exe: &Path) -> windows::core::Result<()> {
     shell_execute(exe, &[], exe.parent().unwrap_or(Path::new(".")))
 }
 
+pub(crate) fn open_companion(exe: &Path) -> windows::core::Result<()> {
+    // LTK's supported settings link reveals its window, including a cold start
+    // whose persisted startup preference would otherwise keep it in the tray.
+    let args: Vec<u16> = "ltk://settings?focus=general.startInTray"
+        .encode_utf16()
+        .collect();
+    shell_execute(exe, &args, exe.parent().unwrap_or(Path::new(".")))
+}
+
+pub(crate) fn open_installer(exe: &Path) -> Result<(), String> {
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
+    let wide = |p: &Path| {
+        p.as_os_str()
+            .encode_wide()
+            .chain(Some(0))
+            .collect::<Vec<_>>()
+    };
+    let file = wide(exe);
+    let dir = wide(exe.parent().unwrap_or(Path::new(".")));
+    let result = unsafe {
+        ShellExecuteW(
+            null_mut(),
+            std::ptr::null(),
+            file.as_ptr(),
+            std::ptr::null(),
+            dir.as_ptr(),
+            SW_SHOWNORMAL,
+        )
+    } as isize;
+    if result > 32 {
+        Ok(())
+    } else {
+        Err(format!("Windows could not open the official installer (shell error {result}). Check for a Windows approval prompt before retrying."))
+    }
+}
+
 fn shell_execute(exe: &Path, args: &[u16], dir: &Path) -> windows::core::Result<()> {
     let wide = |path: &Path| path.as_os_str().encode_wide().collect::<Vec<_>>();
 

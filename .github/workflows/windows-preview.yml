@@ -35,15 +35,13 @@ jobs:
         run: python scripts/prepare-native-windows-engine.py
       - name: Include complete official LTK installer with original signature
         run: |
-          python scripts/prepare-ltk-companion.py
+          python scripts/prepare-ltk-companion.py --test-fixture
           $installer = 'src-tauri/resources/ltk-companion/LTK.Manager_1.30.4_x64-setup.exe'
           if ((Get-AuthenticodeSignature -LiteralPath $installer).Status -ne 'Valid') { throw 'Official LTK installer signature is invalid' }
       - name: Frontend regression tests
         run: npm test
       - name: Windows native regression tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
-      - name: Verify companion discovery and duplicate-launch detection
-        run: ./scripts/test-ltk-companion-discovery.ps1
       - name: Collect open-source license notices
         run: python scripts/windows-license-notices.py
       - name: Build Windows installer

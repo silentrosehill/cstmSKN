@@ -37,6 +37,8 @@ jobs:
         run: npm test
       - name: Windows native regression tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
+      - name: Verify companion discovery and duplicate-launch detection
+        run: ./scripts/test-ltk-companion-discovery.ps1
       - name: Collect open-source license notices
         run: python scripts/windows-license-notices.py
       - name: Build Windows installer

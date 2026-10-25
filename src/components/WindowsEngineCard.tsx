@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getWindowsElevation } from "../lib/commands";
 import type { WindowsElevation } from "../lib/commands";
+import LtkCompanionCard from "./LtkCompanionCard";
 interface Engine { folder: string; source: string; }
-export default function WindowsEngineCard({ native }: { native: boolean; active: boolean; }) {
+export default function WindowsEngineCard({ native, active }: { native: boolean; active: boolean; }) {
   const [engine, setEngine] = useState<Engine | null>(null);
   const [elevation, setElevation] = useState<WindowsElevation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -13,7 +14,7 @@ export default function WindowsEngineCard({ native }: { native: boolean; active:
       void getWindowsElevation().then(setElevation).catch(e => setError(String(e)));
     }
   }, [native]);
-  return <section className="software-update" aria-label="Windows patcher engine">
+  return <><LtkCompanionCard native={native} active={active} /><section className="software-update" aria-label="Windows patcher engine">
     <div className="software-update-row"><div className="software-update-title">
       <h2>Windows engine</h2><p>{engine?.source ?? "cstmSKN native injector"}</p>
     </div></div>
@@ -24,5 +25,5 @@ export default function WindowsEngineCard({ native }: { native: boolean; active:
       <p>Unsigned preview. Windows code-integrity protection may block the DLL; in-game compatibility still needs testing.</p>
       {error && <p className="update-error" role="alert">{error}</p>}
     </div>
-  </section>;
+  </section></>;
 }

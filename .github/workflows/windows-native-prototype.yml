@@ -27,6 +27,8 @@ jobs:
         run: python scripts/prepare-native-windows-engine.py
       - name: Check app/native-engine protocol and regressions
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
+      - name: Verify companion discovery and duplicate-launch detection
+        run: ./scripts/test-ltk-companion-discovery.ps1
   fixture:
     runs-on: windows-latest
     timeout-minutes: 10

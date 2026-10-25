@@ -385,6 +385,8 @@ pub fn run() {
             None,
         ))
         .setup(|app| {
+            #[cfg(target_os = "windows")]
+            commands::ltk_companion::startup(app.handle().clone());
             // "Open at login" stores the executable's path. Rewrite it so it follows the
             // app across updates (the executable used to be named "zushi").
             use tauri_plugin_autostart::ManagerExt;
@@ -403,6 +405,8 @@ pub fn run() {
             commands::engine::set_windows_engine,
             commands::engine::get_windows_elevation,
             commands::engine::set_windows_elevation,
+            commands::ltk_companion::get_ltk_companion,
+            commands::ltk_companion::set_ltk_companion,
             commands::game_path::detect_game_path,
             commands::game_path::validate_game_path,
             commands::game_path::set_game_path,

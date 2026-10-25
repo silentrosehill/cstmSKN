@@ -213,6 +213,10 @@ fn skip_program_name(line: &[u16]) -> &[u16] {
 }
 
 /// Runs `exe` with `args` in `dir` from inside the shell process.
+pub(crate) fn launch_companion(exe: &Path) -> windows::core::Result<()> {
+    shell_execute(exe, &[], exe.parent().unwrap_or(Path::new(".")))
+}
+
 fn shell_execute(exe: &Path, args: &[u16], dir: &Path) -> windows::core::Result<()> {
     let wide = |path: &Path| path.as_os_str().encode_wide().collect::<Vec<_>>();
 

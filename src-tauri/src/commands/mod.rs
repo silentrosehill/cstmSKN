@@ -3,6 +3,7 @@ pub mod client;
 pub mod customs;
 pub mod engine;
 pub mod game_path;
+pub mod ltk_companion;
 #[cfg(not(target_os = "windows"))]
 pub mod patcher;
 #[cfg(target_os = "windows")]

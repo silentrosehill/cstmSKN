@@ -3,7 +3,8 @@
 This branch connects the source-built native host/DLL to cstmSKN’s actual
 Apply selection and Stop actions. The app builds cosmetic WAD overlays with the
 open-source LeagueToolkit overlay builder and starts its own runtime. No LTK
-Manager or LTK host/DLL binaries are bundled or launched by this build.
+Manager or LTK host/DLL binaries are bundled. An installed official LTK Manager
+can launch separately through the optional background companion described below.
 
 ## Test this Windows prerelease
 
@@ -80,3 +81,32 @@ portable app, corresponding source, licenses, provenance and checksums.
 Original native engine source is GPL-3.0-or-later; the full license and all
 open-source dependency notices accompany the build. No test fixture is bundled
 in the production app. The macOS engine remains separate.
+## LTK background companion
+
+Windows builds can start a separately installed official LTK Manager 1.30.4 or
+later when cstmSKN opens. Settings → LTK companion controls this option (on by
+default). Install LTK from its official release and complete its setup once,
+then quit it before the first background launch.
+
+cstmSKN discovers the installation in Windows uninstall registrations and the
+standard installation folders, requires a valid Windows Authenticode signature,
+and uses Explorer to launch it under the interactive user's normal token. It
+does not bundle, rename, patch or re-sign LTK files.
+
+Before launching, cstmSKN preserves the original `settings.json` as
+`%APPDATA%\dev.leaguetoolkit.manager\settings.before-cstmskn-tray.json`, sets
+`startInTray=true` and `startInTrayUnlessUpdate=false`, and retains other
+settings, profiles and selections. It does not accept setup terms, configure
+League or turn on LTK's patcher automatically. An existing LTK process is left
+alone: another invocation would reveal its window. New launches use LTK's own
+hidden startup and system tray. Manually opened windows, Windows permission
+prompts and third-party changes cannot be guaranteed hidden.
+
+This feature starts the companion only. LTK has no supported external API for
+cstmSKN to synchronize selections or control its Apply/Stop. Use LTK's own
+selection and patcher controls. cstmSKN refuses to start its experimental engine
+while LTK is running, to avoid competing patchers. Turning the startup toggle
+off does not close LTK, disable its patcher, remove its tray preference or stop
+a game. Quitting cstmSKN also leaves LTK open.
+
+Reference: [LTK's tray startup implementation](https://github.com/LeagueToolkit/ltk-manager/blob/v1.30.4/src-tauri/src/services/desktop/app.rs).

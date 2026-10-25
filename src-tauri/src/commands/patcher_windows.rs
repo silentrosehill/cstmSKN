@@ -131,20 +131,26 @@ fn package(path: &Path, staging: &Path, index: usize) -> Result<PathBuf, String>
     Ok(out)
 }
 #[tauri::command]
-pub fn apply_skin(
+pub async fn apply_skin(
     app: AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
     zip_path: String,
 ) -> Result<String, String> {
-    start(app, state.inner().clone(), vec![zip_path])
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || start(app, state, vec![zip_path]))
+        .await
+        .map_err(|e| e.to_string())?
 }
 #[tauri::command]
-pub fn apply_skins(
+pub async fn apply_skins(
     app: AppHandle,
     state: State<'_, Arc<Mutex<AppState>>>,
     zip_paths: Vec<String>,
 ) -> Result<String, String> {
-    start(app, state.inner().clone(), zip_paths)
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || start(app, state, zip_paths))
+        .await
+        .map_err(|e| e.to_string())?
 }
 fn start(
     app: AppHandle,
@@ -153,6 +159,12 @@ fn start(
 ) -> Result<String, String> {
     if CLOSING.load(std::sync::atomic::Ordering::SeqCst) {
         return Err("cstmSKN is closing.".into());
+    }
+    let _companion_gate = super::ltk_companion::engine_gate()
+        .lock()
+        .map_err(|e| e.to_string())?;
+    if super::ltk_companion::running()? {
+        return Err("LTK Manager is running. Quit it from its system tray before using the experimental engine. LTK uses its own skin selections.".into());
     }
     if paths.is_empty() {
         return Err("No skins selected".into());

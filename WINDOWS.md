@@ -68,10 +68,10 @@ It does not substitute for a real game test.
 ```powershell
 npm ci
 python scripts/prepare-native-windows-engine.py
+python scripts/prepare-ltk-companion.py
 cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
 python scripts/windows-license-notices.py
 npm test
-python scripts/prepare-ltk-companion.py
 npm run tauri -- build --bundles nsis
 ```
 

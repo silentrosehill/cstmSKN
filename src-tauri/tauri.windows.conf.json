@@ -29,7 +29,8 @@
     ],
     "externalBin": [],
     "resources": {
-      "resources/windows/": "native/"
+      "resources/windows/": "native/",
+      "resources/ltk-companion/": "ltk-companion/"
     },
     "icon": [
       "icons/icon.ico"

@@ -7,6 +7,7 @@ export default function LtkCompanionCard({ native, active }: { native: boolean; 
   const [status, setStatus] = useState<Companion | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [installerMessage, setInstallerMessage] = useState<string | null>(null);
   useEffect(() => {
     if (!native) return;
     let disposed = false;
@@ -20,8 +21,14 @@ export default function LtkCompanionCard({ native, active }: { native: boolean; 
     return () => { disposed = true; window.clearInterval(timer); };
   }, [native]);
   async function change(enabled: boolean) {
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setInstallerMessage(null);
     try { setStatus(await invoke<Companion>("set_ltk_companion", { enabled })); }
+    catch (e) { setError(String(e)); }
+    finally { setBusy(false); }
+  }
+  async function install() {
+    setBusy(true); setError(null); setInstallerMessage(null);
+    try { setInstallerMessage(await invoke<string>("install_ltk_companion")); }
     catch (e) { setError(String(e)); }
     finally { setBusy(false); }
   }
@@ -33,14 +40,16 @@ export default function LtkCompanionCard({ native, active }: { native: boolean; 
         onChange={event => void change(event.target.checked)} />
     </div>
     <div className="software-update-status">
-      <p>{busy ? "Updating companion startup…" : status?.message ?? "Checking LTK Manager…"}</p>
+      <p>{busy ? "Preparing LTK companion…" : installerMessage ?? status?.message ?? "Checking LTK Manager…"}</p>
       <p>LTK uses its own skin selections. Quit it from its tray before using cstmSKN’s experimental engine.</p>
       <details><summary>Setup and background behavior</summary>
-        <p>Install official LTK Manager 1.30.4 or later and complete setup once. Its signed files stay unchanged and its tray icon remains available.</p>
+        <p>The complete official LTK Manager 1.30.4 installer is included. Install it here and complete setup once. Its signed files stay unchanged and its tray icon remains available.</p>
         <p>Turning this off prevents future launches and leaves a running companion open. Windows prompts and manually opened LTK windows remain visible. Apply and Stop control cstmSKN’s experimental engine only.</p>
       </details>
+      <div className="flex gap-2 mt-3"><button type="button" className="quiet-button" disabled={!native || busy || active}
+        onClick={() => void install()}>Install LTK Manager</button>
       {status?.enabled && <button type="button" className="quiet-button" disabled={!native || busy || active}
-        onClick={() => void change(true)}>Retry background launch</button>}
+        onClick={() => void change(true)}>Retry background launch</button>}</div>
       {error && <p className="update-error" role="alert">{error}</p>}
     </div>
   </section>;

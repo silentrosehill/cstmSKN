@@ -406,6 +406,7 @@ pub fn run() {
             commands::engine::get_windows_elevation,
             commands::engine::set_windows_elevation,
             commands::ltk_companion::get_ltk_companion,
+            commands::ltk_companion::install_ltk_companion,
             commands::ltk_companion::set_ltk_companion,
             commands::game_path::detect_game_path,
             commands::game_path::validate_game_path,

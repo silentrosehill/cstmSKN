@@ -5,6 +5,11 @@ use std::sync::Arc;
 use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Manager, State};
 
+#[cfg(target_os = "windows")]
+const INSTALLER_NAME: &str = "LTK.Manager_1.30.4_x64-setup.exe";
+#[cfg(target_os = "windows")]
+const INSTALLER_SHA256: &str = "0007230f8772c846d586f456aedee5846f7dbf4719715940e73bb073ae4eff23";
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompanionInfo {
@@ -86,6 +91,34 @@ mod platform {
     pub(super) struct Installation {
         pub path: Option<String>,
         pub running: bool,
+    }
+
+    pub(super) fn verify_installer(path: &std::path::Path) -> Result<(), String> {
+        use sha2::{Digest, Sha256};
+        use std::io::Read;
+        let file = fs::File::open(path).map_err(|_| {
+            "The included official installer is missing. Reinstall this cstmSKN build."
+        })?;
+        if file.metadata().map_err(|e| e.to_string())?.len() > 32 * 1024 * 1024 {
+            return Err("The included LTK installer does not match this release.".into());
+        }
+        let mut hash = Sha256::new();
+        let mut reader = std::io::BufReader::new(file);
+        let mut buffer = [0; 64 * 1024];
+        loop {
+            let count = reader.read(&mut buffer).map_err(|e| e.to_string())?;
+            if count == 0 {
+                break;
+            }
+            hash.update(&buffer[..count]);
+        }
+        if format!("{:x}", hash.finalize()) != INSTALLER_SHA256 {
+            return Err(
+                "The included LTK installer failed verification. Reinstall this cstmSKN build."
+                    .into(),
+            );
+        }
+        Ok(())
     }
 
     /// The script contains no interpolated user input and does not change files.
@@ -313,6 +346,57 @@ pub fn startup(app: AppHandle) {
 pub fn get_ltk_companion() -> Result<CompanionInfo, String> {
     info().lock().map(|s| s.clone()).map_err(|e| e.to_string())
 }
+
+/// Open the complete official installer. Do not suppress setup or UAC prompts.
+#[tauri::command]
+pub async fn install_ltk_companion(
+    app: AppHandle,
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<String, String> {
+    if !matches!(
+        state.lock().map_err(|e| e.to_string())?.patcher_status,
+        PatcherStatus::Idle | PatcherStatus::Error(_)
+    ) {
+        return Err("Stop the experimental engine before installing LTK Manager.".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        tauri::async_runtime::spawn_blocking(move || {
+            use std::{os::windows::process::CommandExt, process::{Command, Stdio}};
+            let path = app.path().resource_dir().map_err(|e| e.to_string())?.join("ltk-companion").join(INSTALLER_NAME);
+            #[cfg(debug_assertions)]
+            let path = if path.is_file() { path } else {
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/ltk-companion").join(INSTALLER_NAME)
+            };
+            platform::verify_installer(&path)?;
+            // Fixed code; the path is data, never PowerShell source. Start-Process
+            // retains Windows installer UI and ordinary UAC approval behavior.
+            let mut child = Command::new(super::powershell()).creation_flags(0x08000000)
+                .args(["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference='Stop'; if ((Get-AuthenticodeSignature -LiteralPath $env:CSTMSKN_LTK_INSTALLER).Status -ne 'Valid') { throw 'Official installer signature is invalid' }; Start-Process -FilePath $env:CSTMSKN_LTK_INSTALLER"])
+                .env("CSTMSKN_LTK_INSTALLER", &path)
+                .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
+                .spawn().map_err(|e| e.to_string())?;
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            loop {
+                if let Some(exit) = child.try_wait().map_err(|e| e.to_string())? {
+                    if !exit.success() { return Err("Windows could not open the official installer or its signature check failed. Check Windows approval prompts before retrying.".into()); }
+                    return Ok("Official LTK installer opened. Complete installation and initial setup, quit LTK, then choose Retry background launch.".into());
+                }
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill(); let _ = child.wait();
+                    return Err("Installer launch timed out. Check for a Windows approval prompt before trying again.".into());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }).await.map_err(|e| e.to_string())?
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Err("The LTK companion installer is available on Windows.".into())
+    }
+}
+
 #[tauri::command]
 pub async fn set_ltk_companion(
     app: AppHandle,
@@ -341,6 +425,40 @@ pub async fn set_ltk_companion(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn included_installer_matches_original_official_artifact() {
+        let root =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/ltk-companion");
+        platform::verify_installer(&root.join(INSTALLER_NAME)).unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(root.join("provenance.json")).unwrap()).unwrap();
+        assert_eq!(manifest["sha256"], INSTALLER_SHA256);
+        assert_eq!(manifest["artifact"], INSTALLER_NAME);
+    }
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn replaced_or_missing_installers_cannot_be_launched() {
+        let root =
+            std::env::temp_dir().join(format!("cstmskn-installer-test-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("replaced.exe");
+        std::fs::write(&path, b"MZuntrusted replacement").unwrap();
+        assert!(platform::verify_installer(&path)
+            .unwrap_err()
+            .contains("failed verification"));
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_len(33 * 1024 * 1024).unwrap();
+        drop(file);
+        assert!(platform::verify_installer(&path)
+            .unwrap_err()
+            .contains("does not match"));
+        std::fs::remove_file(&path).unwrap();
+        assert!(platform::verify_installer(&path)
+            .unwrap_err()
+            .contains("missing"));
+        std::fs::remove_dir(root).unwrap();
+    }
     #[test]
     fn tray_setup_preserves_selection_and_unknown_settings() {
         let old = br#"{"firstRunComplete":true,"leaguePath":"C:/League","startInTray":false,"startInTrayUnlessUpdate":true,"alwaysStartPatcher":false,"future":{"key":[1,2]}}"#;

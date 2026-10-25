@@ -2,9 +2,9 @@
 
 This branch connects the source-built native host/DLL to cstmSKN’s actual
 Apply selection and Stop actions. The app builds cosmetic WAD overlays with the
-open-source LeagueToolkit overlay builder and starts its own runtime. No LTK
-Manager or LTK host/DLL binaries are bundled. An installed official LTK Manager
-can launch separately through the optional background companion described below.
+open-source LeagueToolkit overlay builder and starts its own runtime. The complete,
+unchanged official LTK Manager installer is also included for optional companion
+setup. LTK remains a separate installed app, launched through its own tray mode.
 
 ## Test this Windows prerelease
 
@@ -71,6 +71,7 @@ python scripts/prepare-native-windows-engine.py
 cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
 python scripts/windows-license-notices.py
 npm test
+python scripts/prepare-ltk-companion.py
 npm run tauri -- build --bundles nsis
 ```
 
@@ -85,13 +86,21 @@ in the production app. The macOS engine remains separate.
 
 Windows builds can start a separately installed official LTK Manager 1.30.4 or
 later when cstmSKN opens. Settings → LTK companion controls this option (on by
-default). Install LTK from its official release and complete its setup once,
-then quit it before the first background launch.
+default). The complete official LTK Manager 1.30.4 installer is included with
+both cstmSKN packages. Choose **Install LTK Manager** in Settings, complete its
+official installer and one-time setup, then quit it before the first background
+launch. Windows approval prompts and initial setup remain visible. Installing
+cstmSKN does not automatically install LTK or accept LTK setup on your behalf.
+
+The `ltk-companion` resource folder retains the original official installer
+artifact unchanged, together with its provenance, full GPL text and corresponding
+source links. cstmSKN verifies its pinned SHA-256 and Windows Authenticode signature
+before opening it. Patcher DLLs/hosts are not extracted into cstmSKN or re-signed.
 
 cstmSKN discovers the installation in Windows uninstall registrations and the
 standard installation folders, requires a valid Windows Authenticode signature,
 and uses Explorer to launch it under the interactive user's normal token. It
-does not bundle, rename, patch or re-sign LTK files.
+does not rename, patch or re-sign LTK files.
 
 Before launching, cstmSKN preserves the original `settings.json` as
 `%APPDATA%\dev.leaguetoolkit.manager\settings.before-cstmskn-tray.json`, sets

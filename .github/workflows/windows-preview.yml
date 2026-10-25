@@ -33,6 +33,11 @@ jobs:
         run: npm ci
       - name: Build and test source-native Windows engine
         run: python scripts/prepare-native-windows-engine.py
+      - name: Include complete official LTK installer with original signature
+        run: |
+          python scripts/prepare-ltk-companion.py
+          $installer = 'src-tauri/resources/ltk-companion/LTK.Manager_1.30.4_x64-setup.exe'
+          if ((Get-AuthenticodeSignature -LiteralPath $installer).Status -ne 'Valid') { throw 'Official LTK installer signature is invalid' }
       - name: Frontend regression tests
         run: npm test
       - name: Windows native regression tests
@@ -48,6 +53,7 @@ jobs:
           New-Item -ItemType Directory -Force release-windows | Out-Null
           Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe release-windows/cstmSKN-Windows-x64-setup.exe
           Copy-Item src-tauri/resources/windows/provenance.json release-windows/engine-provenance.json
+          Copy-Item src-tauri/resources/ltk-companion/provenance.json release-windows/ltk-companion-provenance.json
           Copy-Item licenses/GPL-3.0.txt release-windows/LICENSE.txt
           Copy-Item WINDOWS.md release-windows/
           git archive --format=zip --output=release-windows/cstmSKN-Windows-source.zip HEAD
@@ -57,6 +63,10 @@ jobs:
           New-Item -ItemType Directory -Force portable/cstmSKN/native | Out-Null
           Copy-Item src-tauri/target/release/cstmSKN.exe portable/cstmSKN/
           Copy-Item src-tauri/resources/windows/* portable/cstmSKN/native/
+          Copy-Item -Recurse src-tauri/resources/ltk-companion portable/cstmSKN/ltk-companion
+          $companion = 'portable/cstmSKN/ltk-companion/LTK.Manager_1.30.4_x64-setup.exe'
+          $expected = '0007230f8772c846d586f456aedee5846f7dbf4719715940e73bb073ae4eff23'
+          if ((Get-FileHash -LiteralPath $companion -Algorithm SHA256).Hash.ToLower() -ne $expected) { throw 'Portable app did not preserve the official installer' }
           Copy-Item WINDOWS.md portable/cstmSKN/
           $portableExe = (Resolve-Path portable/cstmSKN/cstmSKN.exe).Path
           $stub = Start-Process $portableExe -PassThru

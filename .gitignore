@@ -17,6 +17,7 @@ release/
 .update-signing/
 
 src-tauri/resources/windows/
+src-tauri/resources/ltk-companion/
 
 __pycache__/
 *.py[cod]

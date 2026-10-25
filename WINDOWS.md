@@ -1,7 +1,23 @@
-# cstmSKN Windows — LTK background patching
+# cstmSKN Windows — experimental LTK integration (blocked)
 
-The Windows app uses the official installed LTK patcher to apply the skin and
-custom-mod selection made in cstmSKN. Apply builds a WAD overlay with the
+## Confirmed incompatibility with current LTK
+
+A real game test with the current official DLL reached attachment but then
+rejected cstmSKN with `VRF00000008: host verification failed, refusing overlay`.
+The LTK contributor response in [upstream issue #923](https://github.com/LeagueToolkit/ltk-manager/issues/923)
+confirms this check intentionally blocks third-party apps. Direct host startup,
+scanning and clean stopping in CI do not establish permission to serve an overlay
+in game. Rose's direct-host command flow does not remove the newer restriction.
+
+**The current direct integration does not apply skins.** Installing LTK again,
+changing administrator rights or code-signing cstmSKN alone does not change the
+DLL's launcher-verification decision. Keeping the original signed DLL requires
+an upstream-supported third-party integration. No identity spoofing or signature
+reuse is implemented. The sections below describe the experimental wiring, not
+a confirmed working in-game integration.
+
+The Windows preview attempts to serve the selected skin/custom-mod overlay
+through the official installed LTK patcher. Apply builds it with the
 open-source LeagueToolkit overlay builder and starts `ltk_patcher_host.exe`
 in the background. Stop controls that same process. The experimental cstmSKN
 injector is no longer built, loaded or bundled. The Mac patcher is unchanged.
@@ -15,10 +31,9 @@ installation**, then **Continue to cstmSKN**. If LTK is already installed, its
 original signed host/DLL are checked and setup can be skipped. The dialog can
 also be dismissed with **Set up later**; installation remains in Settings.
 
-Only installing the LTK components is required. You select skins in cstmSKN;
-a separate LTK Manager window is not needed for cstmSKN's patching. The first
-setup prompt also appears once for users upgrading from the old experimental
-engine, so the change is visible.
+Installing LTK verifies that its files are present; it does not authorize
+cstmSKN as a third-party launcher. LTK Manager can be used separately. The
+setup prompt also appears once after upgrading the old experimental engine.
 
 ## Apply and Stop
 

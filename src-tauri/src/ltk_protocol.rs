@@ -42,6 +42,9 @@ pub fn hook_target_pid(line: &str) -> Option<u32> {
 }
 pub fn status(line: &str) -> Option<PatcherStatus> {
     let lower = line.to_ascii_lowercase();
+    if lower.contains("host verification failed") && lower.contains("vrf00000008") {
+        return Some(PatcherStatus::Error("LTK blocked third-party launcher use (VRF00000008). No skin was applied. The current official DLL requires an LTK-supported integration; reinstalling it or running as administrator does not remove this restriction.".into()));
+    }
     if lower.contains("host verification failed") {
         return Some(PatcherStatus::Error("The installed LTK patcher refused this launcher. Its files were not modified. Copy diagnostics to investigate.".into()));
     }
@@ -72,7 +75,9 @@ pub fn status(line: &str) -> Option<PatcherStatus> {
             match state {
                 "injecting" => Some(PatcherStatus::WaitingForGame),
                 "injected" => Some(PatcherStatus::Patching),
-                "waiting" => Some(PatcherStatus::InGame),
+                // Attachment precedes the DLL's host verification. Waiting for
+                // game exit is not evidence that any overlay was accepted.
+                "waiting" => Some(PatcherStatus::Patching),
                 "exited" => Some(PatcherStatus::GameExited),
                 "failed" => Some(PatcherStatus::Error(format!("LTK: {message}"))),
                 _ => None,
@@ -81,6 +86,7 @@ pub fn status(line: &str) -> Option<PatcherStatus> {
         "error" => Some(PatcherStatus::Error(
             line.splitn(3, ' ').nth(2).unwrap_or(line).into(),
         )),
+        "dll" if lower.contains("redirected wad:") => Some(PatcherStatus::InGame),
         _ => None,
     }
 }
@@ -109,6 +115,10 @@ mod tests {
         );
         assert_eq!(
             status("status 3 waiting game exit"),
+            Some(PatcherStatus::Patching)
+        );
+        assert_eq!(
+            status("dll 3 123 456 INFO redirected wad: DATA/FINAL/Test.wad.client"),
             Some(PatcherStatus::InGame)
         );
         for line in [
@@ -123,6 +133,23 @@ mod tests {
                 "{line}"
             );
         }
+    }
+    #[test]
+    fn attachment_before_a_launcher_rejection_does_not_claim_success() {
+        for line in [
+            "status 26 injected dll attached",
+            "status 26 waiting awaiting game exit",
+            "dll 26 123 456 INFO init done",
+        ] {
+            assert_ne!(status(line), Some(PatcherStatus::InGame));
+        }
+        let failure = status("dll 28 123 456 ERROR ltk_patcher_dll::verify: host verification failed, refusing overlay: [VRF00000008] (789,ltk-manager.exe)");
+        let Some(PatcherStatus::Error(message)) = failure else {
+            panic!("Expected explicit refusal")
+        };
+        assert!(message.contains("third-party"));
+        assert!(message.contains("No skin was applied"));
+        assert!(message.contains("VRF00000008"));
     }
     #[cfg(target_os = "windows")]
     #[test]

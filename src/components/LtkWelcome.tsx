@@ -34,9 +34,9 @@ export default function LtkWelcome({ onClose }: { onClose: () => void }) {
         else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) { event.preventDefault(); first.focus(); }
       }}>
       <span className="update-dialog-icon">{status?.installed ? <Check size={25} /> : <Download size={25} />}</span>
-      <h2 id="ltk-welcome-title">{status?.installed ? "You’re ready to apply skins" : "Set up skin patching"}</h2>
-      <p>{status?.installed ? "Select your skins in cstmSKN and click Apply selection. LTK runs in the background." : "cstmSKN uses LTK to apply your skins. Install its official components once to get started."}</p>
-      <p className="update-dialog-message" role="status">{busy ? "Checking installation…" : message ?? (started ? "Finish the Windows installer, then check installation here." : status && !status.installed ? status.message : status?.installed ? "Official LTK files verified." : "The official installer is included. Windows will ask you to approve installation.")}</p>
+      <h2 id="ltk-welcome-title">{status?.installed ? "LTK is installed" : "LTK setup"}</h2>
+      <p>Current LTK versions reject cstmSKN’s direct background patching. Installing LTK does not resolve this restriction. You can use LTK Manager separately.</p>
+      <p className="update-dialog-message" role="status">{busy ? "Checking installation…" : message ?? (started ? "Finish the Windows installer, then check installation here." : status ? status.message : "The official installer is included. Windows will ask you to approve installation.")}</p>
       {busy ? <Loader2 size={20} className="animate-spin" /> : status?.installed ?
         <button className="primary-button" onClick={onClose}>Continue to cstmSKN</button> : <>
           <button className="primary-button" onClick={() => void install()}>Install LTK Manager</button>

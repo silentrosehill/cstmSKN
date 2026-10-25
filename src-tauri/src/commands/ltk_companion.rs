@@ -26,7 +26,7 @@ pub async fn get_ltk_companion(app: AppHandle) -> Result<CompanionInfo, String> 
     tauri::async_runtime::spawn_blocking(move || match super::engine::folder(&app) {
         Ok(_) => CompanionInfo {
             installed: true,
-            message: "LTK is installed. Apply selection will run its patcher in the background."
+            message: "LTK is installed, but its current DLL blocks cstmSKN in game (VRF00000008). Direct background patching is not currently supported."
                 .into(),
         },
         Err(message) => CompanionInfo {
@@ -85,7 +85,7 @@ pub async fn install_ltk_companion(
             verify_installer(&path)?;
             crate::windows_ltk::verify_signature(&path)?;
             crate::windows_shell::open_installer(&path)?;
-            Ok("Complete the official installer, then choose Check installation. You can select and apply skins in cstmSKN.".into())
+            Ok("Complete the official installer, then choose Check installation. Current LTK versions block cstmSKN's direct patcher integration; installation does not resolve that restriction.".into())
         }).await.map_err(|e| e.to_string())?
     }
     #[cfg(not(target_os = "windows"))]

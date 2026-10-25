@@ -20,7 +20,7 @@ export default function LtkCompanionCard({ native, active }: { native: boolean; 
   }
   return <section className="software-update" aria-label="LTK setup">
     <div className="software-update-row"><div className="software-update-title">
-      <h2>LTK patcher</h2><p>Apply skins directly from cstmSKN.</p>
+      <h2>LTK patcher</h2><p>Direct integration is currently blocked by LTK.</p>
     </div></div>
     <div className="software-update-status">
       <p role="status">{busy ? "Checking LTK…" : message ?? status?.message ?? "Checking installation…"}</p>
